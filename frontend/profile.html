@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Profilim — bakoda</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="base.css" />
+
+  <style>
+    /* ── Profile layout (shared by profile / my-bookings / favorites) ── */
+    .profile-layout {
+      display: grid; grid-template-columns: 260px 1fr; gap: 32px;
+      padding: 32px 0 80px;
+    }
+    @media (max-width: 880px) { .profile-layout { grid-template-columns: 1fr; } }
+
+    .profile-sidebar {
+      position: sticky; top: 96px; align-self: start;
+      background: #fff; border: 1px solid var(--line); border-radius: var(--r-card);
+      overflow: hidden;
+    }
+    @media (max-width: 880px) { .profile-sidebar { position: static; } }
+
+    .sb-user { padding: 28px 22px 22px; text-align: center; border-bottom: 1px solid var(--line); }
+    .sb-avatar {
+      width: 80px; height: 80px; border-radius: 999px; margin: 0 auto 14px;
+      display: grid; place-items: center; color: #fff;
+      font-family: var(--display); font-weight: 700; font-size: 28px; letter-spacing: -.01em;
+    }
+    .sb-avatar.tone-1 { background: linear-gradient(135deg, #d7a86e 0%, #a07c4f 100%); }
+    .sb-avatar.tone-2 { background: linear-gradient(135deg, #2c5f5a 0%, #163838 100%); }
+    .sb-avatar.tone-3 { background: linear-gradient(135deg, #b76b4e 0%, #6f3b3b 100%); }
+    .sb-name { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--primary); line-height: 1.2; }
+    .sb-email { font-size: 12px; color: var(--muted); margin-top: 4px; word-break: break-all; }
+    .sb-since { margin-top: 10px; padding: 4px 10px; display: inline-block;
+      background: var(--primary-10); border-radius: var(--r-pill);
+      font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); }
+
+    .sb-nav { padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+    .sb-link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px; font-size: 13.5px; color: var(--text);
+      transition: background .12s, color .12s; cursor: pointer;
+    }
+    .sb-link:hover { background: var(--bg); color: var(--primary); }
+    .sb-link.active {
+      background: var(--primary); color: #fff; font-weight: 500;
+    }
+    .sb-link.active svg { color: var(--accent); }
+    .sb-logout { margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); }
+    .sb-logout:hover { background: rgba(231,76,60,.06); color: var(--error); }
+
+    /* Main content card */
+    .profile-main { min-width: 0; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: var(--r-card); padding: 32px 36px; }
+    @media (max-width: 720px) { .card { padding: 24px 22px; } }
+    .card-head {
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+      padding-bottom: 22px; margin-bottom: 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+    }
+    .card-head h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; line-height: 1.15; }
+    .card-head p { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+
+    .section-title { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--muted); margin: 28px 0 14px; display: flex; align-items: center; gap: 10px; }
+    .section-title::before { content: ""; width: 20px; height: 1px; background: var(--accent); }
+    .section-title:first-child { margin-top: 0; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 18px; }
+    @media (max-width: 720px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { font-size: 13px; font-weight: 500; color: var(--text); }
+    .field .hint { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; color: var(--muted); }
+    .err-msg { font-size: 12px; color: var(--error); display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; }
+
+    /* Avatar editor card */
+    .avatar-edit {
+      display: flex; align-items: center; gap: 20px; padding: 18px;
+      background: var(--bg); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 6px;
+    }
+    .avatar-edit .av {
+      width: 60px; height: 60px; border-radius: 999px; flex-shrink: 0;
+      display: grid; place-items: center; color: #fff;
+      font-family: var(--display); font-weight: 700; font-size: 22px;
+      background: linear-gradient(135deg, #d7a86e 0%, #a07c4f 100%);
+    }
+    .avatar-edit .meta { flex: 1; min-width: 0; }
+    .avatar-edit .meta h3 { font-family: var(--display); font-size: 15px; font-weight: 600; }
+    .avatar-edit .meta p  { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+    .avatar-edit .actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+    .avatar-edit .btn { height: 36px; padding: 0 14px; font-size: 13px; }
+
+    /* Toggles (for notification prefs) */
+    .pref-list { display: flex; flex-direction: column; gap: 4px; }
+    .pref {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      padding: 14px 0; border-bottom: 1px solid var(--line);
+    }
+    .pref:last-child { border-bottom: 0; }
+    .pref .info { min-width: 0; }
+    .pref .info .ttl { font-size: 14px; font-weight: 500; color: var(--text); }
+    .pref .info .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .toggle {
+      position: relative; width: 38px; height: 22px; border: 0; border-radius: 999px;
+      background: var(--line); transition: background .15s var(--ease); cursor: pointer; padding: 0; flex-shrink: 0;
+    }
+    .toggle[data-on="1"] { background: var(--success); }
+    .toggle i { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .15s var(--ease); }
+    .toggle[data-on="1"] i { transform: translateX(16px); }
+
+    /* Save row */
+    .save-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--line); gap: 16px; flex-wrap: wrap;
+    }
+    .save-row .info { color: var(--muted); font-size: 12px; }
+    .save-row .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .save-row .actions .btn { height: 44px; }
+
+    /* Danger zone */
+    .danger {
+      margin-top: 24px; padding: 20px 22px;
+      background: rgba(231,76,60,.05); border: 1px solid rgba(231,76,60,.18); border-radius: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+    .danger h3 { font-family: var(--display); font-size: 15px; font-weight: 600; color: var(--error); }
+    .danger p  { font-size: 13px; color: var(--text); margin: 2px 0 0; max-width: 56ch; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="icons.jsx"></script>
+  <script type="text/babel" src="shared.jsx"></script>
+  <script type="text/babel" src="profile-shell.jsx"></script>
+  <script type="text/babel" src="profile.jsx"></script>
+</body>
+</html>
