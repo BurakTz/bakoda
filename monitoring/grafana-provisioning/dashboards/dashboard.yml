@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: bakoda
+    folder: Bakoda
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

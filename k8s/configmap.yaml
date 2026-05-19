@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bakoda-config
+  labels:
+    app: bakoda
+data:
+  DB_HOST: postgres-service
+  DB_PORT: "5432"
+  DB_NAME: bakoda
+  S3_ENDPOINT_URL: http://localstack-service:4566
+  S3_BUCKET_NAME: bakoda-confirmations
+  AWS_DEFAULT_REGION: us-east-1
+  LOG_LEVEL: INFO
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger-service:4317

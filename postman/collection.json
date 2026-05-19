@@ -1,0 +1,167 @@
+{
+  "info": {
+    "_postman_id": "bakoda-hotel-booking",
+    "name": "Bakoda Hotel Booking API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "roomId", "value": "" },
+    { "key": "bookingId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Rooms",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/rooms"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+              "if (pm.response.json().length > 0) {",
+              "  pm.collectionVariables.set('roomId', pm.response.json()[0].id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Rooms with Availability",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/rooms?check_in=2027-06-01&check_out=2027-06-05",
+          "host": ["{{baseUrl}}"],
+          "path": ["rooms"],
+          "query": [
+            { "key": "check_in", "value": "2027-06-01" },
+            { "key": "check_out", "value": "2027-06-05" }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', () => pm.response.to.have.status(200));",
+              "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Room by ID",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/rooms/{{roomId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 or 404', () => {",
+              "  pm.expect([200, 404]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Booking",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/bookings",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"room_id\": {{roomId}},\n  \"guest_name\": \"Postman Guest\",\n  \"guest_email\": \"postman@test.com\",\n  \"check_in\": \"2027-06-01\",\n  \"check_out\": \"2027-06-05\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 201 or 409', () => {",
+              "  pm.expect([201, 409]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('bookingId', pm.response.json().id);",
+              "  pm.test('Status confirmed', () => pm.expect(pm.response.json().status).to.eql('confirmed'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Booking by ID",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/bookings/{{bookingId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 or 404', () => {",
+              "  pm.expect([200, 404]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cancel Booking",
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200, 404, or 409', () => {",
+              "  pm.expect([200, 404, 409]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 200) {",
+              "  pm.test('Status cancelled', () => pm.expect(pm.response.json().status).to.eql('cancelled'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
