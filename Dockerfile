@@ -19,6 +19,7 @@ RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 COPY --from=builder /app/.venv /app/.venv
 COPY src ./src
+COPY frontend ./frontend
 COPY alembic ./alembic
 COPY alembic.ini ./
 

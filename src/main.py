@@ -1,7 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.config import settings
@@ -60,3 +62,8 @@ app.include_router(bookings.router)
 @app.get("/health", response_model=HealthOut, tags=["health"])
 async def health():
     return HealthOut(status="ok")
+
+
+# ── Frontend static files ────────────────────────────────────────────────────
+_frontend_dir = Path(__file__).parent.parent / "frontend"
+app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
