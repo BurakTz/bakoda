@@ -59,6 +59,22 @@ function App() {
   const [removing, setRemoving] = useState(new Set());
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
+  const token = localStorage.getItem("bakoda_token");
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/users/me/favorites", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setFavs(data.map(f => ({
+          id: f.hotel.id, name: f.hotel.name,
+          city: f.hotel.city, district: f.hotel.district || "",
+          stars: f.hotel.stars, rating: f.hotel.rating * 2,
+          price: f.hotel.price_per_night, ph: "ph-h1",
+        })));
+      })
+      .catch(() => {});
+  }, [token]);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -68,6 +84,7 @@ function App() {
 
   const remove = (id) => {
     setRemoving(prev => new Set([...prev, id]));
+    if (token) fetch(`/api/users/me/favorites/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setTimeout(() => {
       setFavs(curr => curr.filter(f => f.id !== id));
       setRemoving(prev => { const n = new Set(prev); n.delete(id); return n; });

@@ -30,6 +30,10 @@ async def _is_room_available(db: AsyncSession, room_id: int, check_in: date, che
     return result.scalar_one_or_none() is None
 
 
+def _make_confirmation_code(booking_id: int) -> str:
+    return f"BKD-{booking_id:04d}-2026"
+
+
 async def create_booking(
     db: AsyncSession,
     room_id: int,
@@ -37,6 +41,13 @@ async def create_booking(
     guest_email: str,
     check_in: date,
     check_out: date,
+    phone: str | None = None,
+    guests: int = 1,
+    rooms_count: int = 1,
+    preferences: str | None = None,
+    arrival_time: str | None = None,
+    trip_type: str | None = None,
+    user_id: int | None = None,
     confirmation_key: str | None = None,
 ) -> Booking:
     room_result = await db.execute(select(Room).where(Room.id == room_id))
@@ -53,15 +64,24 @@ async def create_booking(
 
     booking = Booking(
         room_id=room_id,
+        user_id=user_id,
         guest_name=guest_name,
         guest_email=guest_email,
+        phone=phone,
         check_in=check_in,
         check_out=check_out,
+        guests=guests,
+        rooms_count=rooms_count,
+        preferences=preferences,
+        arrival_time=arrival_time,
+        trip_type=trip_type,
         total_price=total_price,
         status=BookingStatus.confirmed,
         confirmation_key=confirmation_key,
     )
     db.add(booking)
+    await db.flush()
+    booking.confirmation_code = _make_confirmation_code(booking.id)
     await db.commit()
     await db.refresh(booking)
     return booking

@@ -1,12 +1,29 @@
 // profile-shell.jsx — shared sidebar + frame for profile/bookings/favorites.
 // Renders Navbar (from shared.jsx) + sidebar + main slot + Footer.
 
+// Populate from localStorage if token available
+(function() {
+  const stored = localStorage.getItem("bakoda_user");
+  if (stored) {
+    try {
+      const u = JSON.parse(stored);
+      window.PROFILE_USER = {
+        firstName: u.first_name || "Kullanıcı",
+        lastName:  u.last_name  || "",
+        email:     u.email      || "",
+        memberSince: new Date(u.created_at || Date.now()).toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
+        avatarTone: u.avatar_tone || 1,
+      };
+    } catch {}
+  }
+})();
+
 const USER = window.PROFILE_USER || {
   firstName: "Selin",
   lastName:  "Karaca",
   email:     "selin@ornek.com",
   memberSince: "Ocak 2024",
-  avatarTone: 1, // 1..3 — picks a color
+  avatarTone: 1,
 };
 
 const SIDEBAR_ITEMS = [

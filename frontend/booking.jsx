@@ -485,7 +485,37 @@ function App() {
         <div className="container">
           <div className="book-layout">
             <div>
-              {step === 1 && <GuestStep form={form} setForm={setForm} onNext={() => { window.location.href = "payment.html"; }} />}
+              {step === 1 && <GuestStep form={form} setForm={setForm} onNext={async () => {
+                const token = localStorage.getItem("bakoda_token");
+                const roomId = Number(sessionStorage.getItem("bakoda_room_id") || "1");
+                const checkIn = sessionStorage.getItem("bakoda_checkin") || BOOKING.checkIn.toISOString().split("T")[0];
+                const checkOut = sessionStorage.getItem("bakoda_checkout") || BOOKING.checkOut.toISOString().split("T")[0];
+                try {
+                  const res = await fetch("/api/bookings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                    body: JSON.stringify({
+                      room_id: roomId,
+                      guest_name: `${form.firstName} ${form.lastName}`,
+                      guest_email: form.email,
+                      phone: form.phone,
+                      check_in: checkIn,
+                      check_out: checkOut,
+                      guests: BOOKING.adults,
+                      rooms_count: BOOKING.rooms,
+                      preferences: form.requests,
+                      arrival_time: form.arrival,
+                      trip_type: form.trip,
+                    }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    sessionStorage.setItem("bakoda_booking_id", data.id);
+                    sessionStorage.setItem("bakoda_booking_code", data.confirmation_code || "");
+                  }
+                } catch {}
+                window.location.href = "payment.html";
+              }} />}
               {step === 2 && <PaymentStep pay={pay} setPay={setPay} onBack={() => setStep(1)} onConfirm={(m) => { setMethod(m); window.location.href = "confirmation.html"; }} />}
               {step === 3 && <ConfirmStep form={form} method={method} />}
             </div>

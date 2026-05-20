@@ -51,7 +51,7 @@ function ContactForm({ flash }) {
 
   const set = (k, v) => { setForm({...form, [k]: v}); if (errors[k]) setErrors({...errors, [k]: null}); };
 
-  const submit = (ev) => {
+  const submit = async (ev) => {
     ev.preventDefault();
     const e = {};
     if (!form.name.trim())  e.name  = "Adınızı girin";
@@ -61,11 +61,16 @@ function ContactForm({ flash }) {
     setErrors(e);
     if (Object.keys(e).length) return;
     setSending(true);
-    setTimeout(() => {
-      setSending(false);
-      setForm({ name: "", email: "", subject: SUBJECTS[0], message: "" });
-      flash("Mesajınız alındı — 24 saat içinde dönüş yapacağız");
-    }, 800);
+    try {
+      await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, email: form.email, subject: form.subject, message: form.message }),
+      });
+    } catch {}
+    setSending(false);
+    setForm({ name: "", email: "", subject: SUBJECTS[0], message: "" });
+    flash("Mesajınız alındı — 24 saat içinde dönüş yapacağız");
   };
 
   return (

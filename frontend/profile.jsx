@@ -51,9 +51,23 @@ function App() {
     return Object.keys(e).length === 0;
   };
 
-  const save = (ev) => {
+  const save = async (ev) => {
     ev.preventDefault();
     if (!validate()) return;
+    const token = localStorage.getItem("bakoda_token");
+    if (token) {
+      try {
+        const res = await fetch("/api/users/me", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ first_name: form.firstName, last_name: form.lastName, phone: form.phone }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem("bakoda_user", JSON.stringify(data));
+        }
+      } catch {}
+    }
     flash("Değişiklikler kaydedildi");
     setDirty(false);
   };

@@ -20,7 +20,7 @@ Jaeger  (OpenTelemetry tracing)
 Kubernetes: Minikube üzerinde Deployment + Service + ConfigMap
 
 ---
-
+2
 ## Kurulum
 
 ### Gereksinimler

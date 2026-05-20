@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     s3_bucket_name: str = "bakoda-confirmations"
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
     log_level: str = "INFO"
+    jwt_secret_key: str = "change-me-in-prod"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 10080
 
 
 settings = Settings()

@@ -333,11 +333,29 @@ function HotelCard({ h, fav, onFav, onView }) {
 // ── Featured ──────────────────────────────────────────────────────────
 function Featured({ cols, onView }) {
   const [favs, setFavs] = useState(new Set());
-  const toggleFav = (id) => setFavs((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id);else next.add(id);
-    return next;
-  });
+  const [hotels, setHotels] = useState(HOTELS);
+
+  useEffect(() => {
+    fetch("/api/hotels?sort=rating&page=1")
+      .then(r => r.json())
+      .then(d => { if (d.hotels && d.hotels.length) setHotels(d.hotels.slice(0, 6).map(h => ({
+        id: h.id, name: h.name, city: `${h.city}${h.district ? ", " + h.district : ""}`,
+        rating: h.rating * 2,  // API 0-5, UI 0-10
+        reviews: h.reviews_count, price: h.price_per_night, currency: "₺",
+        featured: true, ph: "ph-h1", tags: [], note: "",
+      }))); })
+      .catch(() => {});
+  }, []);
+
+  const toggleFav = async (id) => {
+    const token = localStorage.getItem("bakoda_token");
+    setFavs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); if (token) fetch(`/api/users/me/favorites/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}); }
+      else { next.add(id); if (token) fetch(`/api/users/me/favorites/${id}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}); }
+      return next;
+    });
+  };
   return (
     <section style={{ background: "var(--bg)" }} data-screen-label="Featured Hotels">
       <div className="container">
@@ -351,7 +369,7 @@ function Featured({ cols, onView }) {
         </div>
 
         <div className={`hotel-grid ${cols === 2 ? "cols-2" : ""}`}>
-          {HOTELS.map((h, i) =>
+          {hotels.map((h, i) =>
           <div key={h.id} className="fade-in" style={{ animationDelay: `${i * 40}ms` }}>
               <HotelCard h={h} fav={favs.has(h.id)} onFav={() => toggleFav(h.id)} onView={() => onView(h)} />
             </div>

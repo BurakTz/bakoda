@@ -69,10 +69,17 @@ function StepDots({ step }) {
 // ── Step 1: enter email ───────────────────────────────────────────────
 function EmailStep({ email, setEmail, onNext, flash }) {
   const [err, setErr] = useState("");
-  const submit = (ev) => {
+  const submit = async (ev) => {
     ev.preventDefault();
     if (!email.trim()) return setErr("E-posta gereklidir");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setErr("Geçerli bir e-posta girin");
+    try {
+      await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch {}
     flash("Sıfırlama kodu gönderildi");
     onNext();
   };
@@ -140,14 +147,19 @@ function CodeStep({ email, code, setCode, onNext, onBack, flash }) {
     }
   };
 
-  const submit = (ev) => {
+  const submit = async (ev) => {
     ev.preventDefault();
     if (code.some(d => !d)) return setErr("6 haneli kodu girin");
-    if (code.join("") !== "123456") {
-      // Prototype accepts only 123456; everything else simulates an invalid code
-      return setErr("Kod hatalı veya süresi dolmuş");
-    }
-    onNext();
+    try {
+      const res = await fetch("/api/auth/verify-reset-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: code.join("") }),
+      });
+      const data = await res.json();
+      if (!res.ok) return setErr(data.detail || "Kod hatalı veya süresi dolmuş");
+      onNext(data.reset_token);
+    } catch { setErr("Bağlantı hatası"); }
   };
 
   const resend = () => {
@@ -199,7 +211,7 @@ function CodeStep({ email, code, setCode, onNext, onBack, flash }) {
 }
 
 // ── Step 3: new password ──────────────────────────────────────────────
-function PasswordStep({ flash }) {
+function PasswordStep({ resetToken, flash }) {
   const [pw, setPw]           = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow]       = useState(false);
@@ -210,7 +222,7 @@ function PasswordStep({ flash }) {
 
   const strength = useMemo(() => strengthOf(pw), [pw]);
 
-  const submit = (ev) => {
+  const submit = async (ev) => {
     ev.preventDefault();
     const e = {};
     if (!pw)                      e.pw      = "Şifre gereklidir";
@@ -220,8 +232,16 @@ function PasswordStep({ flash }) {
     setErrors(e);
     if (Object.keys(e).length) return;
     setSubmitting(true);
-    flash("Şifren güncellendi");
-    setTimeout(() => setDone(true), 700);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset_token: resetToken, new_password: pw }),
+      });
+      if (!res.ok) { const d = await res.json(); flash(d.detail || "Hata oluştu"); setSubmitting(false); return; }
+      flash("Şifren güncellendi");
+      setTimeout(() => setDone(true), 700);
+    } catch { flash("Bağlantı hatası"); setSubmitting(false); }
   };
 
   if (done) {
@@ -299,6 +319,7 @@ function App() {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState(["","","","","",""]);
+  const [resetToken, setResetToken] = useState("");
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
 
@@ -340,8 +361,8 @@ function App() {
             <StepDots step={step} />
             {step === 1 && <EmailStep    email={email} setEmail={setEmail} onNext={() => setStep(2)} flash={flash} />}
             {step === 2 && <CodeStep     email={email} code={code} setCode={setCode}
-                                          onNext={() => setStep(3)} onBack={() => setStep(1)} flash={flash} />}
-            {step === 3 && <PasswordStep flash={flash} />}
+                                          onNext={(token) => { setResetToken(token); setStep(3); }} onBack={() => setStep(1)} flash={flash} />}
+            {step === 3 && <PasswordStep resetToken={resetToken} flash={flash} />}
           </div>
         </section>
       </div>

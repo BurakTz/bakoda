@@ -375,8 +375,16 @@ function App() {
     toastT.current = setTimeout(() => setToast(s => ({...s, on:false})), 2400);
   };
 
-  const confirm = (info) => {
+  const confirm = async (info) => {
     flash(`Ödeme işleniyor · ${info.brand?.toUpperCase() || "Kart"} •••• ${info.last4}`);
+    const bookingId = sessionStorage.getItem("bakoda_booking_id");
+    try {
+      await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ booking_id: bookingId ? Number(bookingId) : null, payment_method: "card" }),
+      });
+    } catch {}
     setTimeout(() => { window.location.href = "confirmation.html"; }, 900);
   };
 

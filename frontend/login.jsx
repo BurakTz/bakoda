@@ -87,12 +87,24 @@ function App() {
     return Object.keys(e).length === 0;
   };
 
-  const submit = (ev) => {
+  const submit = async (ev) => {
     ev.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
     flash("Giriş yapılıyor…");
-    setTimeout(() => { window.location.href = "index.html"; }, 900);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { flash(data.detail || "Giriş başarısız"); setSubmitting(false); return; }
+      localStorage.setItem("bakoda_token", data.access_token);
+      localStorage.setItem("bakoda_user", JSON.stringify(data.user));
+      flash("Giriş başarılı, yönlendiriliyorsunuz…");
+      setTimeout(() => { window.location.href = "index.html"; }, 900);
+    } catch { flash("Bağlantı hatası. Tekrar deneyin."); setSubmitting(false); }
   };
 
   return (

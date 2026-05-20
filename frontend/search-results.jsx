@@ -243,6 +243,8 @@ function App() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = React.useRef(null);
+  const [results, setResults] = useState(RESULTS);
+  const [totalInCity, setTotalInCity] = useState(RESULTS.length);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -250,13 +252,31 @@ function App() {
     toastT.current = setTimeout(() => setToast(s => ({...s, on:false})), 2200);
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams({ sort, page });
+    if (filters.price[0] > 500) params.set("price_min", filters.price[0]);
+    if (filters.price[1] < 20000) params.set("price_max", filters.price[1]);
+    if (filters.stars.length === 1) params.set("stars", filters.stars[0]);
+    fetch(`/api/hotels?${params}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.hotels) {
+          setResults(d.hotels.map(h => ({
+            id: h.id, name: h.name, type: `${h.stars} Yıldız`, district: h.district || h.city,
+            stars: h.stars, rating: h.rating * 2, reviews: h.reviews_count,
+            price: h.price_per_night, ph: "ph-r1", featured: false,
+            amen: [], perks: [], cancel: false, breakfast: false, note: "",
+          })));
+          setTotalInCity(d.total);
+        }
+      })
+      .catch(() => {});
+  }, [filters, sort, page]);
+
   const filtered = useMemo(() => {
-    let xs = RESULTS.filter(r =>
+    let xs = results.filter(r =>
       r.price >= filters.price[0] && r.price <= filters.price[1] &&
       (filters.stars.length === 0 || filters.stars.includes(r.stars)) &&
-      (filters.amenities.length === 0 || filters.amenities.every(a =>
-        a === "cancel" ? r.cancel : r.amen.includes(a)
-      )) &&
       (filters.minScore == null || r.rating >= filters.minScore)
     );
     if (sort === "price-asc")  xs = [...xs].sort((a,b) => a.price - b.price);
@@ -264,16 +284,17 @@ function App() {
     if (sort === "rating")     xs = [...xs].sort((a,b) => b.rating - a.rating);
     if (sort === "stars")      xs = [...xs].sort((a,b) => b.stars - a.stars);
     return xs;
-  }, [filters, sort]);
+  }, [results, filters, sort]);
 
-  // total in this city (mock — bigger universe than what we show)
-  const totalInCity = 248;
-
-  const toggleFav = (id) => setFavs(p => {
-    const n = new Set(p);
-    n.has(id) ? n.delete(id) : n.add(id);
-    return n;
-  });
+  const toggleFav = async (id) => {
+    const token = localStorage.getItem("bakoda_token");
+    setFavs(p => {
+      const n = new Set(p);
+      if (n.has(id)) { n.delete(id); if (token) fetch(`/api/users/me/favorites/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}); }
+      else { n.add(id); if (token) fetch(`/api/users/me/favorites/${id}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => {}); }
+      return n;
+    });
+  };
 
   // Active filter chips
   const activeChips = [];

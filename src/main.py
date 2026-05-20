@@ -3,12 +3,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.config import settings
 from src.database import init_db
-from src.routes import bookings, rooms
+from src.routes import auth, bookings, contact, hotels, payments, rooms, users
 from src.schemas import HealthOut
 
 # ── OpenTelemetry setup ──────────────────────────────────────────────────────
@@ -49,14 +50,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 _setup_otel(app)
 
 # ── Prometheus metrics ───────────────────────────────────────────────────────
 Instrumentator().instrument(app).expose(app)
 
 # ── Routers ──────────────────────────────────────────────────────────────────
-app.include_router(rooms.router)
-app.include_router(bookings.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(hotels.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(bookings.router, prefix="/api")
+app.include_router(payments.router, prefix="/api")
+app.include_router(contact.router, prefix="/api")
+app.include_router(rooms.router, prefix="/api")
 
 
 @app.get("/health", response_model=HealthOut, tags=["health"])

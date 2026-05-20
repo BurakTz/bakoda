@@ -107,12 +107,24 @@ function App() {
     return Object.keys(e).length === 0;
   };
 
-  const submit = (ev) => {
+  const submit = async (ev) => {
     ev.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
     flash("Hesabınız oluşturuluyor…");
-    setTimeout(() => { window.location.href = "index.html"; }, 1000);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pw, first_name: firstName, last_name: lastName }),
+      });
+      const data = await res.json();
+      if (!res.ok) { flash(data.detail || "Kayıt başarısız"); setSubmitting(false); return; }
+      localStorage.setItem("bakoda_token", data.access_token);
+      localStorage.setItem("bakoda_user", JSON.stringify(data.user));
+      flash("Hesabınız oluşturuldu!");
+      setTimeout(() => { window.location.href = "index.html"; }, 1000);
+    } catch { flash("Bağlantı hatası. Tekrar deneyin."); setSubmitting(false); }
   };
 
   return (

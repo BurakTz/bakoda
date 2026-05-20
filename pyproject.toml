@@ -18,6 +18,9 @@ boto3 = "^1.35.0"
 pydantic = { version = "^2.10.0", extras = ["email"] }
 pydantic-settings = "^2.7.0"
 python-dotenv = "^1.0.0"
+python-jose = { version = "^3.3.0", extras = ["cryptography"] }
+passlib = { version = "^1.7.4", extras = ["bcrypt"] }
+python-multipart = "^0.0.9"
 prometheus-fastapi-instrumentator = "^7.0.0"
 opentelemetry-sdk = "^1.29.0"
 opentelemetry-instrumentation-fastapi = "^0.50b0"

@@ -102,7 +102,26 @@ function Confetti() {
 function App() {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState({ on: false, msg: "" });
+  const [res, setRes] = useState(RES);
   const toastT = useRef(null);
+
+  useEffect(() => {
+    const bookingId = sessionStorage.getItem("bakoda_booking_id");
+    if (!bookingId) return;
+    fetch(`/api/bookings/${bookingId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.id) setRes(prev => ({
+          ...prev,
+          code: data.confirmation_code || prev.code,
+          checkIn: data.check_in || prev.checkIn,
+          checkOut: data.check_out || prev.checkOut,
+          guests: data.guests || prev.guests,
+          total: data.total_price || prev.total,
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   const flash = (msg) => {
     setToast({ on: true, msg });
@@ -112,7 +131,7 @@ function App() {
 
   const copyCode = async () => {
     try {
-      await navigator.clipboard.writeText(RES.code);
+      await navigator.clipboard.writeText(res.code);
       setCopied(true);
       flash("Rezervasyon kodu panoya kopyalandı");
       setTimeout(() => setCopied(false), 1800);

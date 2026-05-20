@@ -1,6 +1,6 @@
 // My Bookings — tabs: upcoming / past / cancelled
 
-const { useState, useRef, useMemo } = React;
+const { useState, useRef, useMemo, useEffect } = React;
 
 const BOOKINGS = [
   // Upcoming
@@ -143,13 +143,35 @@ function App() {
     toastT.current = setTimeout(() => setToast(s => ({...s, on:false})), 2400);
   };
 
-  const counts = useMemo(() => ({
-    upcoming:  BOOKINGS.filter(b => b.status === "upcoming").length,
-    past:      BOOKINGS.filter(b => b.status === "past").length,
-    cancelled: BOOKINGS.filter(b => b.status === "cancelled").length,
-  }), []);
+  const [bookings, setBookings] = useState(BOOKINGS);
+  const token = localStorage.getItem("bakoda_token");
 
-  const filtered = BOOKINGS.filter(b => b.status === tab);
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/users/me/bookings?status=${tab}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setBookings(data.map(b => ({
+          id: b.id, code: b.confirmation_code || `BKD-${b.id}`,
+          name: b.hotel_name || "Otel",
+          city: b.hotel_city || "",
+          checkIn: b.check_in, checkOut: b.check_out,
+          guests: b.guests, rooms: b.rooms_count,
+          nights: Math.ceil((new Date(b.check_out) - new Date(b.check_in)) / 86400000),
+          total: b.total_price,
+          status: tab, ph: "ph-r1",
+        })));
+      })
+      .catch(() => {});
+  }, [tab, token]);
+
+  const counts = useMemo(() => ({
+    upcoming:  bookings.filter(b => b.status === "upcoming").length,
+    past:      bookings.filter(b => b.status === "past").length,
+    cancelled: bookings.filter(b => b.status === "cancelled").length,
+  }), [bookings]);
+
+  const filtered = bookings.filter(b => b.status === tab);
 
   const onAction = (kind, b) => {
     if (kind === "detay")  window.location.href = "hotel-detail.html";
