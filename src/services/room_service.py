@@ -46,6 +46,31 @@ async def list_rooms(
     return list(result.scalars().all())
 
 
+async def count_available_rooms_by_hotels(
+    db: AsyncSession,
+    hotel_ids: list[int],
+    check_in: date,
+    check_out: date,
+    min_capacity: int | None = None,
+) -> dict[int, int]:
+    if not hotel_ids:
+        return {}
+    stmt = (
+        select(Room.hotel_id, func.count())
+        .where(
+            Room.status == RoomStatus.available,
+            Room.hotel_id.in_(hotel_ids),
+        )
+        .group_by(Room.hotel_id)
+    )
+    if min_capacity is not None:
+        stmt = stmt.where(Room.capacity >= min_capacity)
+    booked_ids = overlapping_booked_room_ids_subquery(check_in, check_out)
+    stmt = stmt.where(Room.id.not_in(booked_ids))
+    rows = (await db.execute(stmt)).all()
+    return {int(hid): int(cnt) for hid, cnt in rows}
+
+
 async def count_available_rooms(
     db: AsyncSession,
     hotel_id: int,

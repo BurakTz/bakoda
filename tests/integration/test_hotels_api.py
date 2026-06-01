@@ -112,6 +112,48 @@ async def urgup_hotel(session_factory) -> Hotel:
 
 
 @pytest.mark.asyncio
+async def test_list_destinations(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get("/api/hotels/destinations?limit=5")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert any(d["name"] == "İstanbul" for d in data)
+
+
+@pytest.mark.asyncio
+async def test_search_locations(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get("/api/hotels/locations?q=istanbul")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert any(item["name"] == "İstanbul" for item in data)
+
+
+@pytest.mark.asyncio
+async def test_search_locations_turkish_prefix(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get("/api/hotels/locations", params={"q": "İsta"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert any(item["name"] == "İstanbul" for item in data)
+
+
+@pytest.mark.asyncio
+async def test_search_locations_ascii_prefix(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get("/api/hotels/locations", params={"q": "ist"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert any(item["name"] == "İstanbul" for item in data)
+
+
+@pytest.mark.asyncio
+async def test_search_locations_popular_without_query(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get("/api/hotels/locations?limit=8")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert any(item["kind"] == "city" for item in data)
+
+
+@pytest.mark.asyncio
 async def test_list_hotels_returns_ok(client: AsyncClient):
     resp = await client.get("/api/hotels")
     assert resp.status_code == 200
@@ -166,6 +208,28 @@ async def test_list_hotels_filter_location_handles_diacritics(
 
 
 @pytest.mark.asyncio
+async def test_list_hotels_returns_distinct_city_fields(
+    client: AsyncClient, istanbul_hotel: Hotel, urgup_hotel: Hotel
+):
+    resp = await client.get("/api/hotels")
+    assert resp.status_code == 200
+    by_id = {h["id"]: h for h in resp.json()["hotels"]}
+    assert by_id[istanbul_hotel.id]["city"] == "İstanbul"
+    assert by_id[urgup_hotel.id]["city"] == "Nevşehir"
+
+
+@pytest.mark.asyncio
+async def test_list_hotels_filter_city_excludes_other_cities(
+    client: AsyncClient, istanbul_hotel: Hotel, urgup_hotel: Hotel
+):
+    resp = await client.get("/api/hotels?city=İstanbul")
+    assert resp.status_code == 200
+    hotel_ids = {h["id"] for h in resp.json()["hotels"]}
+    assert istanbul_hotel.id in hotel_ids
+    assert urgup_hotel.id not in hotel_ids
+
+
+@pytest.mark.asyncio
 async def test_list_hotels_filter_stars(client: AsyncClient, istanbul_hotel: Hotel):
     resp = await client.get("/api/hotels?stars=5")
     assert resp.status_code == 200
@@ -209,6 +273,20 @@ async def test_get_hotel_detail(client: AsyncClient, istanbul_hotel: Hotel):
     assert len(data["amenities"]) == 2
     assert len(data["reviews"]) == 1
     assert len(data["rooms"]) == 1
+    assert data["min_price"] == 3000.0
+
+
+@pytest.mark.asyncio
+async def test_get_hotel_detail_min_price_from_available_rooms(
+    client: AsyncClient, istanbul_hotel: Hotel
+):
+    resp = await client.get(
+        f"/api/hotels/{istanbul_hotel.id}?check_in=2027-09-01&check_out=2027-09-05&guests=2"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available_rooms_count"] == 1
+    assert data["min_price"] == data["rooms"][0]["price_per_night"]
 
 
 @pytest.mark.asyncio
@@ -224,6 +302,39 @@ async def test_list_hotels_filters_by_guests_capacity(
     resp = await client.get("/api/hotels?city=Testopolis&guests=3")
     assert resp.status_code == 200
     assert resp.json()["hotels"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_hotels_includes_available_room_count_with_dates(
+    client: AsyncClient,
+    session_factory,
+    istanbul_hotel: Hotel,
+):
+    unique_city = "AvailableRoomsCountTest"
+    async with session_factory() as session:
+        result = await session.execute(select(Hotel).where(Hotel.id == istanbul_hotel.id))
+        hotel = result.scalar_one()
+        hotel.city = unique_city
+        for i in range(2):
+            session.add(
+                Room(
+                    hotel_id=istanbul_hotel.id,
+                    room_number=f"E{i}{uuid.uuid4().hex[:4].upper()}",
+                    type=RoomType.double,
+                    capacity=2,
+                    price_per_night=3000.0,
+                    status=RoomStatus.available,
+                )
+            )
+        await session.commit()
+
+    resp = await client.get(
+        f"/api/hotels?city={unique_city}&check_in=2027-09-01&check_out=2027-09-05"
+    )
+    assert resp.status_code == 200
+    hotels = [h for h in resp.json()["hotels"] if h["id"] == istanbul_hotel.id]
+    assert len(hotels) == 1
+    assert hotels[0]["available_rooms_count"] == 3
 
 
 @pytest.mark.asyncio

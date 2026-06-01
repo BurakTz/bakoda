@@ -2,7 +2,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.services.hotel_service import search_hotels
+from src.services.hotel_service import _normalize_location_term, search_hotels
+
+
+def test_normalize_location_term_turkish():
+    assert _normalize_location_term("İsta") == "ista"
+    assert _normalize_location_term("İstanbul") == "istanbul"
+    assert _normalize_location_term("Nevşehir") == "nevsehir"
+    assert _normalize_location_term("ist") == "ist"
 
 
 @pytest.mark.asyncio

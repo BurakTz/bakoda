@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.models import User
-from src.schemas import BookingCreate, BookingOut
+from src.schemas import BookingCreate, BookingListOut, BookingOut
 from src.services import booking_service, s3_service
 from src.services.auth_service import get_optional_user
 from src.services.booking_service import (
@@ -72,14 +72,14 @@ async def create_booking(
     return out
 
 
-@router.get("/{booking_id}", response_model=BookingOut)
+@router.get("/{booking_id}", response_model=BookingListOut)
 async def get_booking(booking_id: int, db: AsyncSession = Depends(get_db)):
     try:
-        booking = await booking_service.get_booking(db, booking_id)
+        booking = await booking_service.get_booking_detail(db, booking_id)
     except BookingNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    out = BookingOut.model_validate(booking)
+    out = booking_service.booking_to_list_out(booking)
     if booking.confirmation_key:
         try:
             out.confirmation_url = s3_service.get_presigned_url(booking.confirmation_key)

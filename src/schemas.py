@@ -88,6 +88,7 @@ class HotelOut(BaseModel):
     check_in_time: str
     check_out_time: str
     thumbnail: str | None = None
+    available_rooms_count: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -96,8 +97,25 @@ class HotelOut(BaseModel):
 class HotelDetailOut(HotelOut):
     rooms: list[RoomOut] = []
     available_rooms_count: int | None = None
+    min_price: float | None = None
     amenities: list[AmenityOut] = []
     reviews: list[ReviewOut] = []
+
+
+class DestinationOut(BaseModel):
+    name: str
+    country: str
+    slug: str
+    hotels: int
+    image: str | None = None
+
+
+class LocationOut(BaseModel):
+    name: str
+    city: str
+    country: str
+    hotels: int
+    kind: str
 
 
 # ── Auth schemas ──────────────────────────────────────────────────────────────
@@ -159,6 +177,10 @@ class UserOut(BaseModel):
     country: str
     language: str
     currency: str
+    notify_email: bool = True
+    notify_sms: bool = False
+    notify_deals: bool = True
+    notify_marketing: bool = False
     avatar_tone: int
     created_at: datetime
 
@@ -174,6 +196,10 @@ class UserUpdate(BaseModel):
     country: str | None = None
     language: str | None = None
     currency: str | None = None
+    notify_email: bool | None = None
+    notify_sms: bool | None = None
+    notify_deals: bool | None = None
+    notify_marketing: bool | None = None
 
 
 class ChangePasswordIn(BaseModel):
@@ -251,6 +277,8 @@ class BookingListOut(BookingOut):
     hotel_name: str | None = None
     hotel_city: str | None = None
     hotel_id: int | None = None
+    hotel_thumbnail: str | None = None
+    room_name: str | None = None
 
 
 # ── Favorite schemas ──────────────────────────────────────────────────────────

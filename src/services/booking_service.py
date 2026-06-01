@@ -1,9 +1,11 @@
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from src.models import Booking, BookingStatus, Room, RoomStatus
+from src.models import Booking, BookingStatus, Room, RoomStatus, User
+from src.schemas import BookingListOut
 from src.services import room_service
 
 
@@ -121,9 +123,32 @@ async def create_booking(
     db.add(booking)
     await db.flush()
     booking.confirmation_code = _make_confirmation_code(booking.id)
+
+    if user_id is not None:
+        owner = await db.get(User, user_id)
+        if owner is not None:
+            await db.execute(
+                update(Booking)
+                .where(
+                    Booking.user_id.is_(None),
+                    func.lower(Booking.guest_email) == owner.email.lower(),
+                )
+                .values(user_id=user_id)
+            )
+
     await db.commit()
     await db.refresh(booking)
     return booking
+
+
+async def link_orphan_bookings_for_user(db: AsyncSession, user: User) -> None:
+    """Attach guest bookings for this account email (e.g. after register/login)."""
+    await db.execute(
+        update(Booking)
+        .where(func.lower(Booking.guest_email) == user.email.lower())
+        .values(user_id=user.id)
+    )
+    await db.commit()
 
 
 async def get_booking(db: AsyncSession, booking_id: int) -> Booking:
@@ -132,6 +157,41 @@ async def get_booking(db: AsyncSession, booking_id: int) -> Booking:
     if booking is None:
         raise BookingNotFoundError(f"Booking {booking_id} not found")
     return booking
+
+
+async def get_booking_detail(db: AsyncSession, booking_id: int) -> Booking:
+    result = await db.execute(
+        select(Booking)
+        .options(selectinload(Booking.room).selectinload(Room.hotel))
+        .where(Booking.id == booking_id)
+    )
+    booking = result.scalar_one_or_none()
+    if booking is None:
+        raise BookingNotFoundError(f"Booking {booking_id} not found")
+    return booking
+
+
+def booking_to_list_out(booking: Booking) -> BookingListOut:
+    out = BookingListOut.model_validate(booking)
+    if booking.room:
+        out.room_name = booking.room.name or booking.room.type.value
+        if booking.room.hotel:
+            out.hotel_name = booking.room.hotel.name
+            district = booking.room.hotel.district
+            out.hotel_city = (
+                f"{booking.room.hotel.city}, {district}" if district else booking.room.hotel.city
+            )
+            out.hotel_id = booking.room.hotel.id
+            out.hotel_thumbnail = booking.room.hotel.thumbnail
+    return out
+
+
+def user_owns_booking(booking: Booking, user: User) -> bool:
+    if booking.user_id == user.id:
+        return True
+    if booking.user_id is None and booking.guest_email.lower() == user.email.lower():
+        return True
+    return False
 
 
 async def cancel_booking(db: AsyncSession, booking_id: int) -> Booking:

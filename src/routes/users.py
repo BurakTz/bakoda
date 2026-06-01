@@ -15,8 +15,9 @@ from src.schemas import (
     UserOut,
     UserUpdate,
 )
-from src.services import payment_method_service, user_service
+from src.services import booking_service, payment_method_service, s3_service, user_service
 from src.services.auth_service import get_current_user, hash_password, verify_password
+from src.services.booking_service import BookingNotFoundError
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -72,10 +73,34 @@ async def my_bookings(
         out = BookingListOut.model_validate(b)
         if b.room and b.room.hotel:
             out.hotel_name = b.room.hotel.name
-            out.hotel_city = b.room.hotel.city
+            district = b.room.hotel.district
+            out.hotel_city = (
+                f"{b.room.hotel.city}, {district}" if district else b.room.hotel.city
+            )
             out.hotel_id = b.room.hotel.id
+            out.hotel_thumbnail = b.room.hotel.thumbnail
         result.append(out)
     return result
+
+
+@router.get("/me/bookings/{booking_id}", response_model=BookingListOut)
+async def my_booking_detail(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        booking = await user_service.get_user_booking(db, current_user.id, booking_id)
+    except BookingNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    out = booking_service.booking_to_list_out(booking)
+    if booking.confirmation_key:
+        try:
+            out.confirmation_url = s3_service.get_presigned_url(booking.confirmation_key)
+        except Exception:
+            pass
+    return out
 
 
 @router.get("/me/favorites", response_model=list[FavoriteOut])

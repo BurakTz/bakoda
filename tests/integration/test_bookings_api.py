@@ -37,6 +37,124 @@ def _s3_patch():
 
 
 @pytest.mark.asyncio
+async def test_authenticated_booking_appears_in_my_bookings(
+    client: AsyncClient,
+    book_room: Room,
+):
+    token_resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": "bookings-link@bakoda.com",
+            "password": "Secure123",
+            "first_name": "Booking",
+            "last_name": "Tester",
+        },
+    )
+    token = token_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Booking Tester",
+                "guest_email": "bookings-link@bakoda.com",
+                "check_in": "2027-11-01",
+                "check_out": "2027-11-04",
+            },
+            headers=headers,
+        )
+    assert create_resp.status_code == 201
+
+    list_resp = await client.get("/api/users/me/bookings?status=upcoming", headers=headers)
+    assert list_resp.status_code == 200
+    ids = [b["id"] for b in list_resp.json()]
+    assert create_resp.json()["id"] in ids
+
+
+@pytest.mark.asyncio
+async def test_authenticated_booking_with_different_guest_email_still_lists(
+    client: AsyncClient,
+    book_room: Room,
+):
+    """Logged-in user sees booking even when form email differs from account email."""
+    token_resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": "account@bakoda.com",
+            "password": "Secure123",
+            "first_name": "Acc",
+            "last_name": "Ount",
+        },
+    )
+    headers = {"Authorization": f"Bearer {token_resp.json()['access_token']}"}
+
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Acc Ount",
+                "guest_email": "other-inbox@bakoda.com",
+                "check_in": "2027-12-10",
+                "check_out": "2027-12-12",
+            },
+            headers=headers,
+        )
+    assert create_resp.status_code == 201
+    booking_id = create_resp.json()["id"]
+    assert create_resp.json()["user_id"] is not None
+
+    list_resp = await client.get("/api/users/me/bookings?status=upcoming", headers=headers)
+    assert any(b["id"] == booking_id for b in list_resp.json())
+
+
+@pytest.mark.asyncio
+async def test_guest_booking_linked_by_email_after_login(
+    client: AsyncClient,
+    book_room: Room,
+):
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Guest User",
+                "guest_email": "guest-link@bakoda.com",
+                "check_in": "2027-12-01",
+                "check_out": "2027-12-03",
+            },
+        )
+    assert create_resp.status_code == 201
+    booking_id = create_resp.json()["id"]
+
+    token_resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": "guest-link@bakoda.com",
+            "password": "Secure123",
+            "first_name": "Guest",
+            "last_name": "User",
+        },
+    )
+    headers = {"Authorization": f"Bearer {token_resp.json()['access_token']}"}
+
+    list_resp = await client.get("/api/users/me/bookings?status=upcoming", headers=headers)
+    assert list_resp.status_code == 200
+    assert any(b["id"] == booking_id for b in list_resp.json())
+
+
+@pytest.mark.asyncio
 async def test_create_booking_success(client: AsyncClient, book_room: Room):
     with (
         patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
@@ -239,3 +357,141 @@ async def test_cancel_booking_twice(client: AsyncClient, book_room: Room):
     await client.patch(f"/api/bookings/{booking_id}/cancel")
     resp = await client.patch(f"/api/bookings/{booking_id}/cancel")
     assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_booking_includes_hotel_fields(
+    client: AsyncClient,
+    book_room: Room,
+    sample_hotel,
+):
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Detail Guest",
+                "guest_email": "detail@test.com",
+                "check_in": "2027-12-01",
+                "check_out": "2027-12-04",
+            },
+        )
+    booking_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/api/bookings/{booking_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == booking_id
+    assert body["hotel_name"] == sample_hotel.name
+    assert body["hotel_id"] == sample_hotel.id
+    assert body["confirmation_code"] == f"BKD-{booking_id:04d}-2026"
+    assert body["guests"] == 1
+    assert body["total_price"] > 0
+    assert body["room_name"]
+
+
+@pytest.mark.asyncio
+async def test_my_booking_detail_requires_auth(client: AsyncClient, book_room: Room):
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Auth Guest",
+                "guest_email": "auth-detail@test.com",
+                "check_in": "2028-01-01",
+                "check_out": "2028-01-03",
+            },
+        )
+    booking_id = create_resp.json()["id"]
+
+    unauth = await client.get(f"/api/users/me/bookings/{booking_id}")
+    assert unauth.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_my_booking_detail_returns_full_booking(
+    client: AsyncClient,
+    book_room: Room,
+    sample_hotel,
+):
+    token_resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": "detail-owner@bakoda.com",
+            "password": "Secure123",
+            "first_name": "Detail",
+            "last_name": "Owner",
+        },
+    )
+    headers = {"Authorization": f"Bearer {token_resp.json()['access_token']}"}
+
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Detail Owner",
+                "guest_email": "detail-owner@bakoda.com",
+                "check_in": "2028-02-01",
+                "check_out": "2028-02-05",
+                "guests": 2,
+                "rooms_count": 1,
+            },
+            headers=headers,
+        )
+    booking_id = create_resp.json()["id"]
+
+    resp = await client.get(f"/api/users/me/bookings/{booking_id}", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == booking_id
+    assert body["hotel_name"] == sample_hotel.name
+    assert body["status"] == "confirmed"
+    assert body["guests"] == 2
+    assert body["check_in"] == "2028-02-01"
+    assert body["check_out"] == "2028-02-05"
+
+
+@pytest.mark.asyncio
+async def test_my_booking_detail_not_visible_to_other_user(
+    client: AsyncClient,
+    book_room: Room,
+):
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Private Guest",
+                "guest_email": "private@test.com",
+                "check_in": "2028-03-01",
+                "check_out": "2028-03-03",
+            },
+        )
+    booking_id = create_resp.json()["id"]
+
+    other = await client.post(
+        "/api/auth/register",
+        json={
+            "email": "other-user@bakoda.com",
+            "password": "Secure123",
+            "first_name": "Other",
+            "last_name": "User",
+        },
+    )
+    headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    resp = await client.get(f"/api/users/me/bookings/{booking_id}", headers=headers)
+    assert resp.status_code == 404

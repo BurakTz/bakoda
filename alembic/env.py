@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -10,8 +11,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+import src.models  # noqa: E402, F401 — register full schema for autogenerate/migrations
+from src.config import settings  # noqa: E402
 from src.database import Base  # noqa: E402
-from src.models import Booking, Room  # noqa: E402, F401
+
+
+def get_database_url() -> str:
+    """Prefer process env (Docker Compose / exec -e) over Settings/.env defaults."""
+    return os.environ.get("DATABASE_URL") or settings.database_url
+
+
+config.set_main_option("sqlalchemy.url", get_database_url())
 
 target_metadata = Base.metadata
 

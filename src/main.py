@@ -37,7 +37,7 @@ def _setup_otel(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting up — initialising database tables")
+    logger.info("Starting up — running database migrations")
     await init_db()
     yield
     logger.info("Shutting down")

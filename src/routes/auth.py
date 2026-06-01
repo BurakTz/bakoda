@@ -17,6 +17,7 @@ from src.schemas import (
     VerifyResetCodeIn,
     VerifyResetCodeOut,
 )
+from src.services import booking_service
 from src.services.auth_service import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,6 +38,7 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    await booking_service.link_orphan_bookings_for_user(db, user)
     return TokenOut(access_token=create_access_token(user.id), user=UserOut.model_validate(user))
 
 
@@ -48,6 +50,7 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı")
+    await booking_service.link_orphan_bookings_for_user(db, user)
     return TokenOut(access_token=create_access_token(user.id), user=UserOut.model_validate(user))
 
 

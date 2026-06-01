@@ -41,6 +41,74 @@ async def test_update_me(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_update_me_profile_fields_persist(client: AsyncClient):
+    token = await _register(client, "profilefields@bakoda.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "first_name": "Test",
+        "last_name": "Beş",
+        "phone": "+90 555 111 22 33",
+        "birthday": "1992-03-15",
+        "gender": "Kadın",
+        "country": "Almanya",
+        "language": "de",
+        "currency": "EUR",
+        "notify_email": True,
+        "notify_sms": True,
+        "notify_deals": False,
+        "notify_marketing": True,
+    }
+    put_resp = await client.put("/api/users/me", json=payload, headers=headers)
+    assert put_resp.status_code == 200
+    body = put_resp.json()
+    assert body["phone"] == payload["phone"]
+    assert body["birthday"] == payload["birthday"]
+    assert body["gender"] == payload["gender"]
+    assert body["country"] == payload["country"]
+    assert body["language"] == payload["language"]
+    assert body["currency"] == payload["currency"]
+    assert body["notify_sms"] is True
+    assert body["notify_deals"] is False
+    assert body["notify_marketing"] is True
+
+    get_resp = await client.get("/api/users/me", headers=headers)
+    assert get_resp.status_code == 200
+    assert get_resp.json() == body
+
+
+@pytest.mark.asyncio
+async def test_update_me_profile_frontend_payload(client: AsyncClient):
+    """Matches profile.jsx buildProfilePayload (labels → API codes)."""
+    token = await _register(client, "profilefront@bakoda.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "first_name": "Ayşe",
+        "last_name": "Yılmaz",
+        "phone": "+90 532 000 00 00",
+        "birthday": "1990-07-20",
+        "gender": "Kadın",
+        "country": "Türkiye",
+        "language": "tr",
+        "currency": "TRY",
+        "notify_email": True,
+        "notify_sms": False,
+        "notify_deals": True,
+        "notify_marketing": False,
+    }
+    put_resp = await client.put("/api/users/me", json=payload, headers=headers)
+    assert put_resp.status_code == 200
+    body = put_resp.json()
+    assert body["country"] == "Türkiye"
+    assert body["language"] == "tr"
+    assert body["currency"] == "TRY"
+    assert body["notify_sms"] is False
+    assert body["notify_marketing"] is False
+
+    get_resp = await client.get("/api/users/me", headers=headers)
+    assert get_resp.json()["notify_sms"] is False
+
+
+@pytest.mark.asyncio
 async def test_my_bookings_empty(client: AsyncClient):
     token = await _register(client, "nobookings@bakoda.com")
     resp = await client.get("/api/users/me/bookings", headers={"Authorization": f"Bearer {token}"})
@@ -184,6 +252,7 @@ async def test_payment_methods_crud(client: AsyncClient):
         json={
             "name": "Test User",
             "line": "Test Cad. 1",
+            "district": "Kadıköy",
             "city": "İstanbul",
             "zip_code": "34000",
             "country": "Türkiye",
@@ -191,6 +260,21 @@ async def test_payment_methods_crud(client: AsyncClient):
     )
     assert resp.status_code == 200
     assert resp.json()["city"] == "İstanbul"
+    assert resp.json()["district"] == "Kadıköy"
+
+    resp = await client.get("/api/users/me/billing-address", headers=headers)
+    assert resp.status_code == 200
+    billing = resp.json()
+    assert billing["line"] == "Test Cad. 1"
+    assert billing["district"] == "Kadıköy"
+    assert billing["zip_code"] == "34000"
+
+    resp = await client.get("/api/users/me/payment-methods", headers=headers)
+    assert resp.status_code == 200
+    cards = resp.json()
+    assert len(cards) == 1
+    assert cards[0]["last4"] == "5555"
+    assert cards[0]["is_default"] is True
 
 
 @pytest.mark.asyncio

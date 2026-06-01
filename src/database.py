@@ -1,3 +1,5 @@
+import asyncio
+import os
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -18,6 +20,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+def _run_alembic_upgrade() -> None:
+    from alembic.config import Config
+
+    from alembic import command
+
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", os.environ.get("DATABASE_URL") or settings.database_url)
+    command.upgrade(cfg, "head")
+
+
 async def init_db() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Apply Alembic migrations on startup (replaces metadata.create_all)."""
+    await asyncio.to_thread(_run_alembic_upgrade)

@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.models import Booking, BookingStatus, Favorite, Room, User
+from src.services.booking_service import BookingNotFoundError, get_booking_detail, user_owns_booking
 
 
 async def get_user_bookings(
@@ -12,15 +13,21 @@ async def get_user_bookings(
     user_id: int,
     status_filter: str | None = None,
 ) -> list[Booking]:
+    user = await db.get(User, user_id)
+    if user is None:
+        return []
+
+    email_match = func.lower(Booking.guest_email) == user.email.lower()
     stmt = (
         select(Booking)
         .options(selectinload(Booking.room).selectinload(Room.hotel))
-        .where(Booking.user_id == user_id)
+        .where(or_(Booking.user_id == user_id, (Booking.user_id.is_(None) & email_match)))
     )
 
     today = datetime.now(timezone.utc).date()
     if status_filter == "upcoming":
-        stmt = stmt.where(Booking.status == BookingStatus.confirmed, Booking.check_in >= today)
+        # Include in-progress stays (check-in may be before today).
+        stmt = stmt.where(Booking.status == BookingStatus.confirmed, Booking.check_out >= today)
     elif status_filter == "past":
         stmt = stmt.where(Booking.status == BookingStatus.confirmed, Booking.check_out < today)
     elif status_filter == "cancelled":
@@ -29,6 +36,16 @@ async def get_user_bookings(
     stmt = stmt.order_by(Booking.created_at.desc())
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_user_booking(db: AsyncSession, user_id: int, booking_id: int) -> Booking:
+    user = await db.get(User, user_id)
+    if user is None:
+        raise BookingNotFoundError(f"Booking {booking_id} not found")
+    booking = await get_booking_detail(db, booking_id)
+    if not user_owns_booking(booking, user):
+        raise BookingNotFoundError(f"Booking {booking_id} not found")
+    return booking
 
 
 async def get_favorites(db: AsyncSession, user_id: int) -> list[Favorite]:
@@ -75,8 +92,7 @@ async def remove_favorite(db: AsyncSession, user_id: int, hotel_id: int) -> bool
 
 async def update_user(db: AsyncSession, user: User, data: dict) -> User:
     for key, value in data.items():
-        if value is not None:
-            setattr(user, key, value)
+        setattr(user, key, value)
     await db.commit()
     await db.refresh(user)
     return user
