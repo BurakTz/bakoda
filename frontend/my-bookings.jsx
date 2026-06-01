@@ -143,7 +143,7 @@ function App() {
     toastT.current = setTimeout(() => setToast(s => ({...s, on:false})), 2400);
   };
 
-  const [bookings, setBookings] = useState(BOOKINGS);
+  const [bookings, setBookings] = useState([]);
   const token = localStorage.getItem("bakoda_token");
 
   useEffect(() => {
@@ -155,6 +155,7 @@ function App() {
           id: b.id, code: b.confirmation_code || `BKD-${b.id}`,
           name: b.hotel_name || "Otel",
           city: b.hotel_city || "",
+          hotel_id: b.hotel_id || null,
           checkIn: b.check_in, checkOut: b.check_out,
           guests: b.guests, rooms: b.rooms_count,
           nights: Math.ceil((new Date(b.check_out) - new Date(b.check_in)) / 86400000),
@@ -173,10 +174,25 @@ function App() {
 
   const filtered = bookings.filter(b => b.status === tab);
 
-  const onAction = (kind, b) => {
-    if (kind === "detay")  window.location.href = "hotel-detail.html";
-    if (kind === "iptal")  flash(`${b.name} için iptal isteği iletildi`);
-    if (kind === "rebook") window.location.href = "hotel-detail.html";
+  const onAction = async (kind, b) => {
+    if (kind === "detay") {
+      window.location.href = "hotel-detail.html" + (b.hotel_id ? "?id=" + b.hotel_id : "");
+    }
+    if (kind === "iptal") {
+      try {
+        const res = await fetch(`/api/bookings/${b.id}/cancel`, {
+          method: "PATCH",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          setBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: "cancelled" } : x));
+          flash(`${b.name} rezervasyonu iptal edildi`);
+        } else {
+          flash("İptal işlemi başarısız oldu");
+        }
+      } catch { flash("İptal işlemi başarısız oldu"); }
+    }
+    if (kind === "rebook") window.location.href = "hotel-detail.html" + (b.hotel_id ? "?id=" + b.hotel_id : "");
   };
 
   return (

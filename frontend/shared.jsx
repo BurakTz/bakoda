@@ -5,6 +5,8 @@ const { useState: useStateS, useEffect: useEffectS } = React;
 
 function Navbar({ active = "Keşfet", onSignup }) {
   const [scrolled, setScrolled] = useStateS(false);
+  const [user, setUser] = useStateS(null);
+
   useEffectS(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
@@ -12,12 +14,26 @@ function Navbar({ active = "Keşfet", onSignup }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffectS(() => {
+    const stored = localStorage.getItem("bakoda_user");
+    if (stored) { try { setUser(JSON.parse(stored)); } catch {} }
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem("bakoda_token");
+    localStorage.removeItem("bakoda_user");
+    window.location.href = "login.html";
+  };
+
   const LINKS = [
     { label: "Keşfet",     href: "index.html" },
     { label: "Oteller",    href: "search-results.html" },
     { label: "Deneyimler", href: "#" },
     { label: "Hakkımızda", href: "about.html" },
   ];
+
+  const initials = user ? (user.first_name?.[0] || "") + (user.last_name?.[0] || "") : "";
+
   return (
     <nav className={`nav ${scrolled ? "scrolled" : "transparent"}`} data-screen-label="Navbar">
       <div className="container nav-inner">
@@ -29,8 +45,20 @@ function Navbar({ active = "Keşfet", onSignup }) {
         </div>
         <div className="nav-right">
           <button className="nav-lang" type="button" aria-label="Dil seç"><IconGlobe size={16} /> <span className="full">TR</span> <IconChevron size={12} /></button>
-          <button className="btn nav-btn-ghost" type="button" onClick={() => { window.location.href = "login.html"; }}>Giriş Yap</button>
-          <button className="btn btn-cta" type="button" onClick={() => { window.location.href = "register.html"; }}>Kayıt Ol</button>
+          {user ? (
+            <>
+              <a href="profile.html" style={{ display:"inline-flex", alignItems:"center", gap:8, fontSize:14, fontWeight:500, color:"inherit", textDecoration:"none" }}>
+                <div style={{ width:34, height:34, borderRadius:"50%", background:"var(--primary)", color:"#fff", display:"grid", placeItems:"center", fontSize:13, fontWeight:600, fontFamily:"var(--display)", flexShrink:0 }}>{initials.toUpperCase()}</div>
+                <span style={{ maxWidth:120, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.first_name}</span>
+              </a>
+              <button className="btn nav-btn-ghost" type="button" onClick={logout} style={{ fontSize:13, height:36, padding:"0 14px" }}>Çıkış</button>
+            </>
+          ) : (
+            <>
+              <button className="btn nav-btn-ghost" type="button" onClick={() => { window.location.href = "login.html"; }}>Giriş Yap</button>
+              <button className="btn btn-cta" type="button" onClick={() => { window.location.href = "register.html"; }}>Kayıt Ol</button>
+            </>
+          )}
         </div>
       </div>
     </nav>

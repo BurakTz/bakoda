@@ -2,77 +2,8 @@
 
 const { useState, useEffect, useRef } = React;
 
-// ── Hotel data ────────────────────────────────────────────────────────
-const HOTEL = {
-  name: "Çırağan Palace Suites",
-  stars: 5,
-  district: "İstanbul, Beşiktaş",
-  rating: 9.4,
-  verdict: "Mükemmel",
-  reviews: 1284,
-  pricePerNight: 8400,
-  cleaning: 500,
-  description:
-    "Boğaz'ın hemen kıyısında, Yıldız Sarayı'na komşu 19. yüzyıl yalısında konumlanan bir butik konaklama. Beşiktaş'ın hareketli rıhtımına yürüme mesafesinde, sessiz bir bahçe ve kişisel butler hizmetiyle ünlü 24 süitten oluşan bir koleksiyon. Mimar Sarkis Balyan'ın orijinal taş işçiliği titizlikle restore edildi.",
-  meta: [
-    { lbl: "Konaklama Tipi", val: "Butik · 5 Yıldız" },
-    { lbl: "Toplam Süit",    val: "24 Süit" },
-    { lbl: "Giriş / Çıkış",  val: "15:00 / 12:00" },
-  ],
-  amenities: [
-    { ico: "IconPool",       title: "Açık & Kapalı Havuz",   sub: "Boğaz manzaralı" },
-    { ico: "IconSpa",        title: "Spa & Hammam",          sub: "Geleneksel ritüel" },
-    { ico: "IconBreakfast",  title: "Kahvaltı Dahil",        sub: "Yerli & kıta usulü" },
-    { ico: "IconRestaurant", title: "Restoran",              sub: "İki Michelin önerisi" },
-    { ico: "IconParking",    title: "Vale Otopark",          sub: "24 saat hizmet" },
-    { ico: "IconBar",        title: "Lobi Bar & Kütüphane",  sub: "Curated şarap listesi" },
-    { ico: "IconBell",       title: "7/24 Resepsiyon",       sub: "Çok dilli ekip" },
-    { ico: "IconHeadset",    title: "Concierge",             sub: "Şehir rehberliği" },
-  ],
-  rooms: [
-    { name: "Deluxe Süit, Park Manzaralı", size: "48 m²", bed: "1 King yatak", view: "Park manzarası", price: 8400, ph: "ph-room-1" },
-    { name: "Premier Süit, Boğaz Manzaralı", size: "62 m²", bed: "1 King yatak", view: "Boğaz manzarası", price: 12200, ph: "ph-room-2" },
-    { name: "Pasha Suite, Kişisel Butler",   size: "98 m²", bed: "2 oda · King", view: "Panoramik Boğaz", price: 24800, ph: "ph-room-3" },
-  ],
-  ratingBars: [
-    { label: "Personel",   value: 9.6 },
-    { label: "Temizlik",   value: 9.5 },
-    { label: "Konfor",     value: 9.4 },
-    { label: "Kahvaltı",   value: 9.7 },
-    { label: "Konum",      value: 9.8 },
-    { label: "Fiyat / Performans", value: 8.6 },
-  ],
-  reviewList: [
-    {
-      name: "Selin K.", country: "Türkiye", when: "Mart 2026", rating: 9.8,
-      title: "Boğaz manzaralı kahvaltı unutulmaz",
-      text: "Üç gece kaldık ve baştan sona kusursuz bir deneyimdi. Süitin tarihi detayları, havuzun manzarası ve özellikle kahvaltıdaki yerli peynir seçkisi — hepsi titizlikle kürate edilmiş. Personel hem yardımsever hem son derece zarif.",
-    },
-    {
-      name: "Marc D.", country: "Fransa", when: "Şubat 2026", rating: 9.2,
-      title: "Heritage meets modern comfort",
-      text: "Beşiktaş'a yürüme mesafesinde sessiz bir vaha. Akşam concierge'in önerdiği yerel meyhane mükemmeldi. Süitin akustiği şehir gürültüsünü tamamen yutuyor. Restorasyon kalitesi ayrı bir başarı.",
-    },
-    {
-      name: "Aylin B.", country: "İstanbul", when: "Ocak 2026", rating: 9.5,
-      title: "Şehir içinde gerçek bir kaçış",
-      text: "Doğum günümü kutlamak için seçtim, hiçbir konuda hayal kırıklığına uğratmadılar. Hamam ritüeli özellikle önerilir.",
-    },
-    {
-      name: "James P.", country: "Birleşik Krallık", when: "Ocak 2026", rating: 9.0,
-      title: "Spotless and graceful",
-      text: "The service is genuinely warm without being intrusive. The pool deck at sunset is a moment I'll remember. Breakfast spread is enormous.",
-    },
-  ],
-};
-
-const GALLERY = [
-  { ph: "ph-g1", label: "[ ana cephe · gün batımı ]" },
-  { ph: "ph-g2", label: "[ havuz · boğaz manzarası ]" },
-  { ph: "ph-g3", label: "[ deluxe süit · iç mekan ]" },
-  { ph: "ph-g4", label: "[ hamam · mermer detay ]" },
-  { ph: "ph-g5", label: "[ kahvaltı terası ]" },
-];
+// API verisi gelene kadar gösterilecek skeleton / placeholder
+const LOADING_HOTEL = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
@@ -120,14 +51,23 @@ function MiniCal({ value, min, onPick }) {
 }
 
 // ── Gallery ───────────────────────────────────────────────────────────
-function Gallery({ onOpen }) {
+// Otel ID'sine göre tutarlı 5 görsel URL üretir (picsum.photos seed-based)
+function hotelImages(hotelId) {
+  const sizes = ["800/600", "800/600", "600/600", "600/600", "600/600"];
+  return sizes.map((sz, i) => `https://picsum.photos/seed/hotel_${hotelId}_${i}/${sz}`);
+}
+
+function Gallery({ hotel, onOpen }) {
+  const imgs = hotelImages(hotel.id);
   return (
     <div className="container gallery">
       <div className="gallery-grid">
-        {GALLERY.map((g, i) => (
-          <div key={i} className={`g ${i===0 ? "main":""}`} onClick={() => onOpen(i)}>
-            <div className={`ph ${g.ph}`} />
-            <div className="ph-label">{g.label}</div>
+        {imgs.map((src, i) => (
+          <div key={i} className={`g ${i===0 ? "main":""}`} onClick={() => onOpen(i)}
+               style={{ position:"relative", overflow:"hidden", background:"var(--line)" }}>
+            <img src={src} alt={`${hotel.name} - ${i+1}`}
+                 style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+                 loading="lazy" />
             {i === 4 && (
               <button className="more" type="button">
                 <IconSearch size={14} /> + 24 fotoğraf
@@ -140,7 +80,8 @@ function Gallery({ onOpen }) {
   );
 }
 
-function Lightbox({ idx, onClose, onNav }) {
+function Lightbox({ hotel, idx, onClose, onNav }) {
+  const imgs = hotelImages(hotel.id);
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
@@ -153,11 +94,12 @@ function Lightbox({ idx, onClose, onNav }) {
   return (
     <div className="lightbox" onClick={onClose}>
       <div className="stage" onClick={(e)=>e.stopPropagation()}>
-        <div className={`ph ${GALLERY[idx].ph}`} />
+        <img src={imgs[idx]} alt={`${hotel.name} - ${idx+1}`}
+             style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8 }} />
         <button className="close" onClick={onClose}><IconX size={16} /></button>
         <button className="nav-btn prev" onClick={()=>onNav(-1)}><IconChevron size={18} style={{transform:"rotate(90deg)"}} /></button>
         <button className="nav-btn next" onClick={()=>onNav(+1)}><IconChevron size={18} style={{transform:"rotate(-90deg)"}} /></button>
-        <div className="counter">{idx+1} / {GALLERY.length}</div>
+        <div className="counter">{idx+1} / {imgs.length}</div>
       </div>
     </div>
   );
@@ -171,14 +113,14 @@ const TABS = [
   { id: "reviews",    label: "Yorumlar" },
 ];
 
-function OverviewPanel({ go }) {
+function OverviewPanel({ hotel, go }) {
   return (
     <>
       <div className="panel" id="overview">
         <h2>Bu konaklama hakkında</h2>
-        <p>{HOTEL.description}</p>
+        <p>{hotel.description}</p>
         <div className="desc-meta">
-          {HOTEL.meta.map(m => (
+          {hotel.meta.map(m => (
             <div className="item" key={m.lbl}>
               <div className="lbl">{m.lbl}</div>
               <div className="val">{m.val}</div>
@@ -190,7 +132,7 @@ function OverviewPanel({ go }) {
       <div className="panel">
         <h2>Öne çıkan olanaklar</h2>
         <div className="amen-grid">
-          {HOTEL.amenities.slice(0, 8).map(a => {
+          {hotel.amenities.slice(0, 8).map(a => {
             const Ico = window[a.ico] || IconCheck;
             return (
               <div className="amen" key={a.title}>
@@ -207,10 +149,10 @@ function OverviewPanel({ go }) {
         <h2>Misafir yorumları</h2>
         <div className="reviews-summary">
           <div>
-            <div className="big">{HOTEL.rating.toFixed(1)}<small>{HOTEL.verdict} · {new Intl.NumberFormat("tr-TR").format(HOTEL.reviews)} yorum</small></div>
+            <div className="big">{hotel.rating.toFixed(1)}<small>{hotel.verdict} · {new Intl.NumberFormat("tr-TR").format(hotel.reviews)} yorum</small></div>
           </div>
           <div className="review-bars">
-            {HOTEL.ratingBars.map(b => (
+            {hotel.ratingBars.map(b => (
               <div className="review-bar" key={b.label}>
                 <div className="label">{b.label}</div>
                 <div className="track"><div className="fill" style={{ width: (b.value/10)*100 + "%" }} /></div>
@@ -220,32 +162,35 @@ function OverviewPanel({ go }) {
           </div>
         </div>
         <div className="review-list">
-          {HOTEL.reviewList.slice(0, 2).map(rv => <ReviewCard rv={rv} key={rv.name} />)}
+          {hotel.reviewList.slice(0, 2).map(rv => <ReviewCard rv={rv} key={rv.name} />)}
         </div>
         <div style={{ marginTop: 20 }}>
-          <button className="btn btn-secondary" onClick={() => go("reviews")}>Tüm {new Intl.NumberFormat("tr-TR").format(HOTEL.reviews)} yorumu gör <IconArrow size={14} /></button>
+          <button className="btn btn-secondary" onClick={() => go("reviews")}>Tüm {new Intl.NumberFormat("tr-TR").format(hotel.reviews)} yorumu gör <IconArrow size={14} /></button>
         </div>
       </div>
     </>
   );
 }
 
-function RoomsPanel({ onBook }) {
+function RoomsPanel({ hotel }) {
   return (
     <div className="panel" id="rooms">
       <h2>Süit & oda seçenekleri</h2>
       <p className="muted" style={{ fontSize:14, marginBottom: 20 }}>Tüm fiyatlar 3 gece konaklama için, kahvaltı dahil.</p>
       <div className="rooms">
-        {HOTEL.rooms.map(r => (
-          <article className="room" key={r.name}>
-            <div className="img"><div className={`ph ${r.ph}`} /></div>
+        {hotel.rooms.map(r => (
+          <article className="room" key={r.name || r.id}>
+            <div className="img">
+              <img src={`https://picsum.photos/seed/room_${hotel.id}_${r.id}/400/300`} alt={r.name}
+                   style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
+            </div>
             <div className="body">
               <h3>{r.name}</h3>
               <div className="feats">
-                <span><IconUsers size={13} /> 2 kişi</span>
-                <span>· {r.size}</span>
-                <span>· {r.bed}</span>
-                <span>· {r.view}</span>
+                <span><IconUsers size={13} /> {r.capacity || 2} kişi</span>
+                {r.size && <span>· {r.size}</span>}
+                {r.bed && <span>· {r.bed}</span>}
+                {r.view && <span>· {r.view}</span>}
               </div>
               <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
                 <span style={{ fontSize:11, padding:"3px 9px", borderRadius:999, background:"rgba(46,204,113,.10)", color:"#1e8e51", fontWeight:500 }}>✓ Ücretsiz iptal</span>
@@ -255,7 +200,12 @@ function RoomsPanel({ onBook }) {
             <div className="side">
               <div className="price">{fmtTL(r.price)}</div>
               <div className="per">/ gece</div>
-              <button className="btn btn-cta" style={{ marginTop:8, height:38, padding:"0 16px", fontSize:13 }} onClick={onBook}>
+              <button className="btn btn-cta" style={{ marginTop:8, height:38, padding:"0 16px", fontSize:13 }} onClick={() => {
+                const t0 = new Date(); t0.setHours(0,0,0,0);
+                const ci = new Date(t0); ci.setDate(ci.getDate()+7);
+                const co = new Date(t0); co.setDate(co.getDate()+10);
+                window.location.href = `booking.html?room_id=${r.id || ""}&hotel_id=${hotel.id}&check_in=${ci.toISOString().split("T")[0]}&check_out=${co.toISOString().split("T")[0]}&adults=2&rooms=1`;
+              }}>
                 Rezervasyon
               </button>
             </div>
@@ -266,12 +216,12 @@ function RoomsPanel({ onBook }) {
   );
 }
 
-function AmenitiesPanel() {
+function AmenitiesPanel({ hotel }) {
   return (
     <div className="panel" id="amenities">
       <h2>Tüm olanaklar</h2>
       <div className="amen-grid">
-        {HOTEL.amenities.map(a => {
+        {hotel.amenities.map(a => {
           const Ico = window[a.ico] || IconCheck;
           return (
             <div className="amen" key={a.title}>
@@ -305,16 +255,16 @@ function ReviewCard({ rv }) {
   );
 }
 
-function ReviewsPanel() {
+function ReviewsPanel({ hotel }) {
   return (
     <div className="panel" id="reviews">
-      <h2>Tüm yorumlar ({new Intl.NumberFormat("tr-TR").format(HOTEL.reviews)})</h2>
+      <h2>Tüm yorumlar ({new Intl.NumberFormat("tr-TR").format(hotel.reviews)})</h2>
       <div className="reviews-summary">
         <div>
-          <div className="big">{HOTEL.rating.toFixed(1)}<small>{HOTEL.verdict}</small></div>
+          <div className="big">{hotel.rating.toFixed(1)}<small>{hotel.verdict}</small></div>
         </div>
         <div className="review-bars">
-          {HOTEL.ratingBars.map(b => (
+          {hotel.ratingBars.map(b => (
             <div className="review-bar" key={b.label}>
               <div className="label">{b.label}</div>
               <div className="track"><div className="fill" style={{ width: (b.value/10)*100 + "%" }} /></div>
@@ -324,21 +274,21 @@ function ReviewsPanel() {
         </div>
       </div>
       <div className="review-list">
-        {HOTEL.reviewList.map(rv => <ReviewCard rv={rv} key={rv.name} />)}
+        {hotel.reviewList.map(rv => <ReviewCard rv={rv} key={rv.name} />)}
       </div>
     </div>
   );
 }
 
 // ── Booking panel ─────────────────────────────────────────────────────
-function BookingPanel({ onBook }) {
+function BookingPanel({ hotel, onBook }) {
   const t0 = today();
   const [checkIn, setCheckIn]   = useState(addDays(t0, 7));
   const [checkOut, setCheckOut] = useState(addDays(t0, 10));
   const [adults, setAdults]     = useState(2);
   const [children, setChildren] = useState(0);
   const [rooms, setRooms]       = useState(1);
-  const [pop, setPop]           = useState(null); // "in" | "out" | "guests"
+  const [pop, setPop]           = useState(null);
   const panel = useRef(null);
 
   useEffect(() => {
@@ -348,17 +298,17 @@ function BookingPanel({ onBook }) {
   }, []);
 
   const nights = Math.max(1, Math.round((checkOut - checkIn) / 86400000));
-  const subtotal = HOTEL.pricePerNight * nights;
+  const subtotal = hotel.pricePerNight * nights;
   const discount = nights >= 3 ? Math.round(subtotal * 0.08) : 0;
-  const cleaning = HOTEL.cleaning;
+  const cleaning = 500;
   const taxes = Math.round((subtotal - discount) * 0.10);
   const total = subtotal - discount + cleaning + taxes;
 
   return (
     <aside className="book" ref={panel}>
       <div className="from">Başlangıç</div>
-      <div className="price"><b>{fmtTL(HOTEL.pricePerNight)}</b><span className="per">/ gece</span></div>
-      <div className="promo"><IconTag size={14} /> 3+ gece için %8 indirim · Mart kampanyası</div>
+      <div className="price"><b>{fmtTL(hotel.pricePerNight)}</b><span className="per">/ gece</span></div>
+      <div className="promo"><IconTag size={14} /> 3+ gece için %8 indirim</div>
 
       <div className="field-row">
         <div className="field" onClick={() => setPop(pop==="in" ? null : "in")}>
@@ -402,12 +352,12 @@ function BookingPanel({ onBook }) {
 
       <div className="breakdown">
         <div className="row">
-          <span className="label"><u>{nights} gece × {fmtTL(HOTEL.pricePerNight)}</u></span>
+          <span className="label"><u>{nights} gece × {fmtTL(hotel.pricePerNight)}</u></span>
           <span>{fmtTL(subtotal)}</span>
         </div>
         {discount > 0 && (
           <div className="row discount">
-            <span className="label">Mart kampanyası (-%8)</span>
+            <span className="label">Kampanya (-%8)</span>
             <span>−{fmtTL(discount)}</span>
           </div>
         )}
@@ -426,7 +376,12 @@ function BookingPanel({ onBook }) {
         </div>
       </div>
 
-      <button className="btn btn-cta cta" onClick={() => { window.location.href = "booking.html"; }}>
+      <button className="btn btn-cta cta" onClick={() => {
+        const roomId = hotel.rooms[0]?.id || "";
+        const ci = checkIn.toISOString().split("T")[0];
+        const co = checkOut.toISOString().split("T")[0];
+        window.location.href = `booking.html?room_id=${roomId}&hotel_id=${hotel.id}&check_in=${ci}&check_out=${co}&adults=${adults}&rooms=${rooms}`;
+      }}>
         Rezervasyonu Tamamla <IconArrow size={16} />
       </button>
 
@@ -455,13 +410,72 @@ function Step({ label, sub, val, min=0, max=12, onChange }) {
   );
 }
 
+// ── API verisi → component'lerin beklediği formata dönüştür ───────────
+function transformHotel(data) {
+  const r = data.rating || 0;
+  return {
+    id: data.id,
+    name: data.name,
+    stars: data.stars,
+    district: `${data.city}${data.district ? ", " + data.district : ""}`,
+    rating: parseFloat((r * 2).toFixed(1)),
+    verdict: r >= 4.5 ? "Mükemmel" : r >= 4.0 ? "Çok İyi" : "İyi",
+    reviews: data.reviews_count,
+    pricePerNight: data.price_per_night,
+    description: data.description || "",
+    meta: [
+      { lbl: "Konaklama Tipi", val: `${data.stars} Yıldız` },
+      { lbl: "Giriş / Çıkış",  val: `${data.check_in_time} / ${data.check_out_time}` },
+    ],
+    amenities: (data.amenities || []).map(a => ({ ico: "IconWifi", title: a.title, sub: a.subtitle || "" })),
+    rooms: (data.rooms || []).map(rm => ({
+      id: rm.id,
+      name: rm.name || rm.type,
+      capacity: rm.capacity || 2,
+      size: rm.size_m2 ? `${rm.size_m2} m²` : "",
+      bed: rm.bed_type || "",
+      view: rm.view || "",
+      price: rm.price_per_night,
+    })),
+    ratingBars: [
+      { label: "Personel",   value: parseFloat((r * 2 * 0.98).toFixed(1)) },
+      { label: "Temizlik",   value: parseFloat((r * 2 * 0.97).toFixed(1)) },
+      { label: "Konfor",     value: parseFloat((r * 2).toFixed(1)) },
+      { label: "Konum",      value: parseFloat((r * 2 * 1.01).toFixed(1)) },
+    ],
+    reviewList: (data.reviews || []).map(rv => ({
+      name: rv.reviewer_name,
+      country: rv.country || "",
+      when: new Date(rv.created_at || Date.now()).toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
+      rating: parseFloat((rv.rating * 2).toFixed(1)),
+      title: rv.title || "",
+      text: rv.text,
+    })),
+  };
+}
+
 // ── App ───────────────────────────────────────────────────────────────
 function App() {
-  const [tab, setTab] = useState("overview");
-  const [fav, setFav] = useState(false);
+  const [hotel, setHotel] = useState(null);   // null = yükleniyor
+  const [tab, setTab]     = useState("overview");
+  const [fav, setFav]     = useState(false);
   const [lightIdx, setLightIdx] = useState(null);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
+
+  const hotelId = new URLSearchParams(window.location.search).get("id") || "1";
+
+  useEffect(() => {
+    setHotel(null);
+    fetch(`/api/hotels/${hotelId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.id) return;
+        sessionStorage.setItem("bakoda_hotel_id", data.id);
+        setHotel(transformHotel(data));
+      })
+      .catch(() => {});
+  }, [hotelId]);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -469,22 +483,27 @@ function App() {
     toastT.current = setTimeout(() => setToast(s => ({...s, on:false})), 2400);
   };
 
-  const navLight = (delta) => setLightIdx(i => (i + delta + GALLERY.length) % GALLERY.length);
+  const navLight = (delta) => setLightIdx(i => (i + delta + 5) % 5);
+
+  if (!hotel) return (
+    <div style={{ minHeight:"100vh", display:"grid", placeItems:"center", fontFamily:"var(--body)", color:"var(--muted)", fontSize:16 }}>
+      Otel bilgileri yükleniyor…
+    </div>
+  );
 
   return (
     <>
       <Navbar active="Oteller" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
 
       <div className="page">
-        {/* Crumbs / favorite + share */}
         <div className="crumbs">
           <div className="container crumbs-inner">
             <div className="crumbs-nav">
               <a href="index.html">Anasayfa</a>
               <span className="sep">/</span>
-              <a href="search-results.html">İstanbul</a>
+              <a href="search-results.html">{hotel.district ? hotel.district.split(",")[0] : "Oteller"}</a>
               <span className="sep">/</span>
-              <span className="here">Çırağan Palace Suites</span>
+              <span className="here">{hotel.name}</span>
             </div>
             <div className="crumbs-actions">
               <button type="button"><IconShare size={13} /> Paylaş</button>
@@ -495,33 +514,31 @@ function App() {
           </div>
         </div>
 
-        <Gallery onOpen={(i) => setLightIdx(i)} />
+        <Gallery hotel={hotel} onOpen={(i) => setLightIdx(i)} />
 
         <div className="container">
           <div className="detail">
             <main>
-              {/* Header */}
               <header className="h-head">
                 <div className="h-meta">
                   <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
-                    <span className="h-stars" aria-label={`${HOTEL.stars} yıldız`}>
-                      {Array.from({length: HOTEL.stars}).map((_, i) => <IconStar key={i} size={15} filled />)}
+                    <span className="h-stars" aria-label={`${hotel.stars} yıldız`}>
+                      {Array.from({length: hotel.stars}).map((_, i) => <IconStar key={i} size={15} filled />)}
                     </span>
                     <span className="h-badge"><IconHeart size={12} filled /> Misafir Favorisi</span>
                   </div>
-                  <h1 className="h-name">{HOTEL.name}</h1>
-                  <div className="h-loc"><IconMapPin size={14} /> {HOTEL.district} · <a href="#">Haritada göster</a></div>
+                  <h1 className="h-name">{hotel.name}</h1>
+                  <div className="h-loc"><IconMapPin size={14} /> {hotel.district} · <a href="#">Haritada göster</a></div>
                 </div>
                 <div className="h-score">
                   <div className="meta">
-                    <div className="verdict">{HOTEL.verdict}</div>
-                    <div className="reviews"><a href="#reviews" onClick={(e)=>{e.preventDefault(); setTab("reviews");}}>{new Intl.NumberFormat("tr-TR").format(HOTEL.reviews)} değerlendirme</a></div>
+                    <div className="verdict">{hotel.verdict}</div>
+                    <div className="reviews"><a href="#reviews" onClick={(e)=>{e.preventDefault(); setTab("reviews");}}>{new Intl.NumberFormat("tr-TR").format(hotel.reviews)} değerlendirme</a></div>
                   </div>
-                  <div className="badge">{HOTEL.rating.toFixed(1)}</div>
+                  <div className="badge">{hotel.rating.toFixed(1)}</div>
                 </div>
               </header>
 
-              {/* Tabs */}
               <div className="tabs" role="tablist">
                 {TABS.map(t => (
                   <button key={t.id} role="tab" aria-selected={tab === t.id}
@@ -530,14 +547,13 @@ function App() {
                 ))}
               </div>
 
-              {/* Panels */}
-              {tab === "overview"  && <OverviewPanel go={setTab} />}
-              {tab === "rooms"     && <RoomsPanel onBook={() => { window.location.href = "booking.html"; }} />}
-              {tab === "amenities" && <AmenitiesPanel />}
-              {tab === "reviews"   && <ReviewsPanel />}
+              {tab === "overview"  && <OverviewPanel hotel={hotel} go={setTab} />}
+              {tab === "rooms"     && <RoomsPanel hotel={hotel} />}
+              {tab === "amenities" && <AmenitiesPanel hotel={hotel} />}
+              {tab === "reviews"   && <ReviewsPanel hotel={hotel} />}
             </main>
 
-            <BookingPanel onBook={(total) => flash(`Rezervasyon başlatıldı · ${fmtTL(total)}`)} />
+            <BookingPanel hotel={hotel} onBook={(total) => flash(`Rezervasyon başlatıldı · ${fmtTL(total)}`)} />
           </div>
         </div>
 
@@ -545,7 +561,7 @@ function App() {
       </div>
 
       <Toast on={toast.on} msg={toast.msg} />
-      {lightIdx != null && <Lightbox idx={lightIdx} onClose={() => setLightIdx(null)} onNav={navLight} />}
+      {lightIdx != null && <Lightbox hotel={hotel} idx={lightIdx} onClose={() => setLightIdx(null)} onNav={navLight} />}
     </>
   );
 }

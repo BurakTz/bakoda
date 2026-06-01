@@ -2,27 +2,9 @@
 
 const { useState, useRef, useEffect, useMemo } = React;
 
-// ── Booking data (matches booking.html) ──────────────────────────────
-const BOOKING = {
-  hotel: "Çırağan Palace Suites",
-  district: "İstanbul, Beşiktaş",
-  roomType: "Deluxe Süit, Park Manzaralı",
-  stars: 5,
-  checkIn:  new Date(2026, 4, 26),  // 26 May
-  checkOut: new Date(2026, 4, 29),  // 29 May
-  adults: 2, rooms: 1,
-  pricePerNight: 8400,
-  discountPct: 8,
-  cleaning: 500,
-};
-const PROFILE_ADDR = {
-  name: "Selin Karaca",
-  street: "Bağdat Caddesi No: 124, Daire 3",
-  district: "Suadiye, Kadıköy",
-  city: "İstanbul",
-  zip: "34740",
-  country: "Türkiye",
-};
+// Booking verisi sessionStorage'dan ve API'dan gelecek — başlangıç değerleri
+const _parseDate = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d; };
+const _t0 = new Date(); _t0.setHours(0,0,0,0);
 
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
 const fmtDateShort = (d) => {
@@ -30,17 +12,15 @@ const fmtDateShort = (d) => {
   return `${d.getDate()} ${m[d.getMonth()]}`;
 };
 
-// ── Pricing ───────────────────────────────────────────────────────────
-function usePricing() {
-  return useMemo(() => {
-    const nights = Math.round((BOOKING.checkOut - BOOKING.checkIn) / 86400000);
-    const subtotal = BOOKING.pricePerNight * nights;
-    const discount = Math.round(subtotal * BOOKING.discountPct / 100);
-    const taxable  = subtotal - discount + BOOKING.cleaning;
-    const taxes    = Math.round(taxable * 0.10);
-    const total    = taxable + taxes;
-    return { nights, subtotal, discount, cleaning: BOOKING.cleaning, taxes, total };
-  }, []);
+function calcPricing(bk) {
+  const nights = bk.checkIn && bk.checkOut ? Math.round((bk.checkOut - bk.checkIn) / 86400000) : 1;
+  const subtotal = bk.pricePerNight * nights;
+  const discount = Math.round(subtotal * 0.08);
+  const cleaning = 500;
+  const taxable  = subtotal - discount + cleaning;
+  const taxes    = Math.round(taxable * 0.10);
+  const total    = taxable + taxes;
+  return { nights, subtotal, discount, cleaning, taxes, total };
 }
 
 // ── Card brand detection ─────────────────────────────────────────────
@@ -103,22 +83,23 @@ function Stepper({ step }) {
   );
 }
 
-// ── Summary card ──────────────────────────────────────────────────────
-function Summary() {
-  const p = usePricing();
+function Summary({ bk }) {
+  const p = calcPricing(bk);
   return (
     <aside className="summary" aria-label="Rezervasyon özeti">
       <div className="summary-head">
         <div className="summary-thumb">
-          <span className="lbl">[ otel ]</span>
+          {bk.thumbnail
+            ? <img src={bk.thumbnail} alt={bk.hotel} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            : <span className="lbl">[ otel ]</span>}
         </div>
         <div className="summary-h">
-          <span className="summary-stars" aria-label={`${BOOKING.stars} yıldız`}>
-            {Array.from({length: BOOKING.stars}).map((_, i) => <IconStar key={i} size={11} filled />)}
+          <span className="summary-stars" aria-label={`${bk.stars} yıldız`}>
+            {Array.from({length: bk.stars || 5}).map((_, i) => <IconStar key={i} size={11} filled />)}
           </span>
-          <div className="summary-name">{BOOKING.hotel}</div>
-          <div className="summary-loc"><IconMapPin size={11} /> {BOOKING.district}</div>
-          <div className="summary-sub">{BOOKING.roomType}</div>
+          <div className="summary-name">{bk.hotel || "Yükleniyor…"}</div>
+          <div className="summary-loc"><IconMapPin size={11} /> {bk.district}</div>
+          <div className="summary-sub">{bk.roomType}</div>
         </div>
       </div>
 
@@ -128,25 +109,27 @@ function Summary() {
             <div className="ico"><IconCalendar size={15} /></div>
             <div>
               <div className="lbl">Giriş — Çıkış</div>
-              <div className="val">{fmtDateShort(BOOKING.checkIn)} → {fmtDateShort(BOOKING.checkOut)} · {p.nights} gece</div>
+              <div className="val">
+                {bk.checkIn ? fmtDateShort(bk.checkIn) : "—"} → {bk.checkOut ? fmtDateShort(bk.checkOut) : "—"} · {p.nights} gece
+              </div>
             </div>
           </div>
           <div className="stay-row">
             <div className="ico"><IconUsers size={15} /></div>
             <div>
               <div className="lbl">Misafir</div>
-              <div className="val">{BOOKING.adults} yetişkin · {BOOKING.rooms} oda</div>
+              <div className="val">{bk.adults} yetişkin · {bk.rooms} oda</div>
             </div>
           </div>
         </div>
 
         <div className="price-rows">
           <div className="row">
-            <span className="label">{p.nights} gece × ₺{new Intl.NumberFormat("tr-TR").format(BOOKING.pricePerNight)}</span>
+            <span className="label">{p.nights} gece × ₺{new Intl.NumberFormat("tr-TR").format(bk.pricePerNight || 0)}</span>
             <span>{fmtTL(p.subtotal)}</span>
           </div>
           <div className="row discount">
-            <span className="label">Mart kampanyası (−%{BOOKING.discountPct})</span>
+            <span className="label">Erken rezervasyon (−%8)</span>
             <span>−{fmtTL(p.discount)}</span>
           </div>
           <div className="row">
@@ -162,9 +145,9 @@ function Summary() {
         <div className="total-row">
           <div>
             <div className="sub">Toplam</div>
-            <div className="lbl">3 gece · 2 kişi</div>
+            <div className="lbl">{p.nights} gece · {bk.adults} kişi</div>
           </div>
-          <div className="val">{fmtTL(p.total)}</div>
+          <div className="val">{fmtTL(bk.apiTotal || p.total)}</div>
         </div>
       </div>
 
@@ -368,6 +351,50 @@ function PaymentForm({ onConfirm }) {
 function App() {
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
+  const [bk, setBk] = useState({
+    hotel: "", district: "", roomType: "", stars: 5, thumbnail: null,
+    checkIn: null, checkOut: null, adults: 2, rooms: 1,
+    pricePerNight: 0, apiTotal: 0,
+  });
+
+  useEffect(() => {
+    const bookingId = sessionStorage.getItem("bakoda_booking_id");
+    const hotelId   = sessionStorage.getItem("bakoda_hotel_id");
+    const roomId    = parseInt(sessionStorage.getItem("bakoda_room_id") || "0");
+
+    if (bookingId) {
+      fetch(`/api/bookings/${bookingId}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.id) setBk(prev => ({
+            ...prev,
+            checkIn:  _parseDate(d.check_in),
+            checkOut: _parseDate(d.check_out),
+            adults: d.guests || 2,
+            rooms: d.rooms_count || 1,
+            apiTotal: d.total_price || 0,
+          }));
+        }).catch(() => {});
+    }
+
+    if (hotelId) {
+      fetch(`/api/hotels/${hotelId}`)
+        .then(r => r.json())
+        .then(d => {
+          if (!d.id) return;
+          const room = (d.rooms || []).find(r => r.id === roomId) || d.rooms?.[0];
+          setBk(prev => ({
+            ...prev,
+            hotel:        d.name,
+            district:     `${d.city}${d.district ? ", " + d.district : ""}`,
+            stars:        d.stars,
+            thumbnail:    d.thumbnail || null,
+            roomType:     room ? (room.name || room.type) : "",
+            pricePerNight: room ? room.price_per_night : (d.price_per_night || 0),
+          }));
+        }).catch(() => {});
+    }
+  }, []);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -397,7 +424,9 @@ function App() {
           <div className="container crumbs-inner">
             <a href="index.html">Anasayfa</a>
             <span className="sep">/</span>
-            <a href="hotel-detail.html">Çırağan Palace Suites</a>
+            <a href={"hotel-detail.html" + (sessionStorage.getItem("bakoda_hotel_id") ? "?id=" + sessionStorage.getItem("bakoda_hotel_id") : "")}>
+              {bk.hotel || "Otel"}
+            </a>
             <span className="sep">/</span>
             <a href="booking.html">Bilgiler</a>
             <span className="sep">/</span>
@@ -410,7 +439,7 @@ function App() {
         <div className="container">
           <div className="book-layout">
             <PaymentForm onConfirm={confirm} />
-            <Summary />
+            <Summary bk={bk} />
           </div>
         </div>
 

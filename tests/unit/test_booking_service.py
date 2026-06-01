@@ -50,6 +50,7 @@ async def test_create_booking_success():
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
 
+    db.flush = AsyncMock()
     booking = await create_booking(db, 1, "Ali", "ali@x.com", date(2026, 7, 1), date(2026, 7, 3))
     db.add.assert_called_once()
     assert booking.total_price == 200.0
@@ -59,7 +60,7 @@ async def test_create_booking_success():
 async def test_create_booking_room_not_found():
     db = _db_returning(None)
     with pytest.raises(RoomNotAvailableError):
-        await create_booking(db, 999, "Ali", "ali@x.com", date(2026, 7, 1), date(2026, 7, 3))
+        await create_booking(db, 999, "Ali", "ali@x.com", date(2027, 7, 1), date(2027, 7, 3))
 
 
 @pytest.mark.asyncio
@@ -67,7 +68,7 @@ async def test_create_booking_room_maintenance():
     room = _room(status=RoomStatus.maintenance)
     db = _db_returning(room)
     with pytest.raises(RoomNotAvailableError):
-        await create_booking(db, 1, "Ali", "ali@x.com", date(2026, 7, 1), date(2026, 7, 3))
+        await create_booking(db, 1, "Ali", "ali@x.com", date(2027, 8, 1), date(2027, 8, 3))
 
 
 @pytest.mark.asyncio
@@ -76,7 +77,7 @@ async def test_create_booking_date_conflict():
     existing = _booking()
     db = _db_returning(room, existing)  # room found, conflict found
     with pytest.raises(RoomNotAvailableError):
-        await create_booking(db, 1, "Ali", "ali@x.com", date(2026, 7, 1), date(2026, 7, 3))
+        await create_booking(db, 1, "Ali", "ali@x.com", date(2027, 9, 1), date(2027, 9, 3))
 
 
 @pytest.mark.asyncio

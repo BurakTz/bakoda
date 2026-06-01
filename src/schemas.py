@@ -145,6 +145,18 @@ class UserUpdate(BaseModel):
     currency: str | None = None
 
 
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Şifre en az 8 karakter olmalı")
+        return v
+
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -199,6 +211,7 @@ class BookingOut(BaseModel):
 class BookingListOut(BookingOut):
     hotel_name: str | None = None
     hotel_city: str | None = None
+    hotel_id: int | None = None
 
 
 # ── Favorite schemas ──────────────────────────────────────────────────────────

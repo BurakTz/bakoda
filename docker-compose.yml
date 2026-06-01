@@ -3,6 +3,10 @@ services:
     build: .
     ports:
       - "8000:8000"
+    volumes:
+      - ./frontend:/app/frontend
+      - ./src:/app/src
+      - ./scripts:/app/scripts
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/bakoda
       S3_ENDPOINT_URL: http://localstack:4566

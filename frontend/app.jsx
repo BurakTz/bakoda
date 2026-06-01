@@ -44,7 +44,7 @@ const today = () => {const d = new Date();d.setHours(0, 0, 0, 0);return d;};
 
 // ── Search card ─────────────────────────────────────────────────────────────────────
 function SearchCard({ onSearch }) {
-  const [loc, setLoc] = useState("");
+  const [loc, setLoc] = useState("İstanbul");
   const [showSuggest, setShowSuggest] = useState(false);
   const [showCalendar, setShowCalendar] = useState(null); // "in" | "out" | null
   const [showGuests, setShowGuests] = useState(false);
@@ -268,8 +268,8 @@ function Destinations() {
 
         <div className="dest-grid">
           {DESTINATIONS.map((d, i) =>
-          <a key={d.slug} className="dest-card fade-in" href="search-results.html" style={{ animationDelay: `${i * 60}ms` }}>
-              <div className={`dest-img ph ${d.ph}`} />
+          <a key={d.slug} className="dest-card fade-in" href={`search-results.html?city=${encodeURIComponent(d.name)}`} style={{ animationDelay: `${i * 60}ms` }}>
+              <div className="dest-img" style={{ background: `url(https://picsum.photos/seed/dest_${d.slug}/600/400) center/cover` }} />
               <div className="dest-marker">{d.marker}</div>
               <div className="dest-body">
                 <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(255,255,255,.7)" }}>
@@ -294,8 +294,10 @@ function HotelCard({ h, fav, onFav, onView }) {
   return (
     <article className="hotel-card" onClick={onView}>
       <div className="hotel-img">
-        <div className={`ph ${h.ph}`} />
-        <div className="ph-label">[ {h.note} ]</div>
+        {h.thumbnail
+          ? <img src={h.thumbnail} alt={h.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
+          : <img src={`https://picsum.photos/seed/hotel_${h.id}_0/600/400`} alt={h.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
+        }
         {h.featured && <span className="hotel-badge">Öne Çıkan</span>}
         <button className={`fav ${fav ? "on" : ""}`} type="button" aria-label="Favorilere ekle"
         onClick={(e) => {e.stopPropagation();onFav();}}>
@@ -333,7 +335,7 @@ function HotelCard({ h, fav, onFav, onView }) {
 // ── Featured ──────────────────────────────────────────────────────────
 function Featured({ cols, onView }) {
   const [favs, setFavs] = useState(new Set());
-  const [hotels, setHotels] = useState(HOTELS);
+  const [hotels, setHotels] = useState([]);
 
   useEffect(() => {
     fetch("/api/hotels?sort=rating&page=1")
@@ -441,9 +443,17 @@ function App() {
   return (
     <>
       <Navbar active="Keşfet" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
-      <Hero headline={t.heroHeadline} onSearch={() => { window.location.href = "search-results.html"; }} />
+      <Hero headline={t.heroHeadline} onSearch={({ loc, checkIn, checkOut, adults, rooms }) => {
+        const p = new URLSearchParams();
+        if (loc) p.set("city", loc);
+        if (checkIn) p.set("check_in", checkIn.toISOString().slice(0, 10));
+        if (checkOut) p.set("check_out", checkOut.toISOString().slice(0, 10));
+        if (adults > 1) p.set("adults", adults);
+        if (rooms > 1) p.set("rooms", rooms);
+        window.location.href = "search-results.html" + (p.toString() ? "?" + p.toString() : "");
+      }} />
       <Destinations />
-      <Featured cols={t.featuredCols} onView={() => { window.location.href = "hotel-detail.html"; }} />
+      <Featured cols={t.featuredCols} onView={(h) => { window.location.href = "hotel-detail.html?id=" + (h.id || 1); }} />
       {t.showWhyUs && <WhyUs />}
       <Footer />
       <Toast on={toast.on} msg={toast.msg} />

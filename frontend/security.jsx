@@ -77,7 +77,7 @@ function App() {
 
   const setPwField = (k, v) => { setPw({...pw, [k]: v}); if (errors[k]) setErrors({...errors, [k]: null}); };
 
-  const changePw = (ev) => {
+  const changePw = async (ev) => {
     ev.preventDefault();
     const e = {};
     if (!pw.current) e.current = "Mevcut şifrenizi girin";
@@ -85,10 +85,22 @@ function App() {
     else if (strength < 2) e.next = "Daha güçlü bir şifre seçin";
     if (pw.confirm !== pw.next) e.confirm = "Şifreler eşleşmiyor";
     setErrors(e);
-    if (Object.keys(e).length === 0) {
-      setPw({ current: "", next: "", confirm: "" });
-      flash("Şifreniz güncellendi");
-    }
+    if (Object.keys(e).length > 0) return;
+    const token = localStorage.getItem("bakoda_token");
+    try {
+      const res = await fetch("/api/users/me/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ current_password: pw.current, new_password: pw.next }),
+      });
+      if (res.ok) {
+        setPw({ current: "", next: "", confirm: "" });
+        flash("Şifreniz güncellendi");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setErrors({ current: data.detail || "Mevcut şifre yanlış" });
+      }
+    } catch { flash("Bağlantı hatası, tekrar deneyin"); }
   };
 
   const revokeSession = (id) => {

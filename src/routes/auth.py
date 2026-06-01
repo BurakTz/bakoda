@@ -1,5 +1,5 @@
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -46,7 +46,7 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
 @router.post("/forgot-password", status_code=200)
 async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(get_db)):
     code = str(random.randint(100000, 999999))
-    expires = datetime.now(timezone.utc) + timedelta(minutes=15)
+    expires = datetime.utcnow() + timedelta(minutes=15)
     db.add(PasswordResetCode(email=payload.email, code=code, expires_at=expires))
     await db.commit()
     # Gerçek projede burada e-posta gönderilir; şimdilik loga yazıyoruz
@@ -57,7 +57,7 @@ async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(
 
 @router.post("/verify-reset-code", response_model=VerifyResetCodeOut)
 async def verify_reset_code(payload: VerifyResetCodeIn, db: AsyncSession = Depends(get_db)):
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     result = await db.execute(
         select(PasswordResetCode).where(
             PasswordResetCode.email == payload.email,
@@ -79,7 +79,7 @@ async def reset_password(payload: ResetPasswordIn, db: AsyncSession = Depends(ge
     except ValueError:
         raise HTTPException(status_code=400, detail="Geçersiz reset token")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     result = await db.execute(
         select(PasswordResetCode).where(
             PasswordResetCode.id == int(record_id),

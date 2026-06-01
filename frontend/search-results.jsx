@@ -80,7 +80,7 @@ function CheckOpt({ label, count, checked, onChange, leading }) {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────
-function Sidebar({ filters, setFilters, onApply }) {
+function Sidebar({ filters, setFilters, onApply, results = [] }) {
   const toggle = (key, value) => {
     const arr = filters[key];
     setFilters({ ...filters, [key]: arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value] });
@@ -119,7 +119,7 @@ function Sidebar({ filters, setFilters, onApply }) {
                   {Array.from({ length: s }).map((_, i) => <IconStar key={i} size={13} filled />)}
                 </span>
               }
-              count={RESULTS.filter(r => r.stars === s).length}
+              count={results.filter(r => r.stars === s).length}
             />
           ))}
         </div>
@@ -176,8 +176,9 @@ function ResultCard({ r, fav, onFav, onView }) {
   return (
     <article className="result-card fade-in" onClick={onView}>
       <div className="rc-img">
-        <div className={`ph ${r.ph}`} />
-        <div className="ph-label">[ {r.note} ]</div>
+        <img src={r.thumbnail || `https://picsum.photos/seed/hotel_${r.id}_0/600/400`} alt={r.name}
+             style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
+        {r.featured && <span className="rc-badge">Öne Çıkan</span>}
         {r.featured && <span className="rc-badge">Öne Çıkan</span>}
         <button className={`rc-fav ${fav ? "on":""}`} type="button" aria-label="Favorilere ekle"
                 onClick={(e) => { e.stopPropagation(); onFav(); }}>
@@ -235,6 +236,18 @@ function ResultCard({ r, fav, onFav, onView }) {
 
 // ── App ───────────────────────────────────────────────────────────────
 function App() {
+  const _qs = new URLSearchParams(window.location.search);
+  const _urlCity    = _qs.get("city") || "";
+  const _urlCheckIn = _qs.get("check_in")  || "";
+  const _urlCheckOut= _qs.get("check_out") || "";
+  const _urlAdults  = parseInt(_qs.get("adults") || "2", 10);
+  const _urlRooms   = parseInt(_qs.get("rooms")  || "1", 10);
+
+  const [city, setCity] = useState(_urlCity);
+  const [checkIn, setCheckIn]   = useState(_urlCheckIn);
+  const [checkOut, setCheckOut] = useState(_urlCheckOut);
+  const [adults, setAdults]     = useState(_urlAdults);
+  const [rooms, setRooms]       = useState(_urlRooms);
   const [filters, setFilters] = useState({
     price: [500, 20000], stars: [], amenities: [], minScore: null,
   });
@@ -243,8 +256,8 @@ function App() {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = React.useRef(null);
-  const [results, setResults] = useState(RESULTS);
-  const [totalInCity, setTotalInCity] = useState(RESULTS.length);
+  const [results, setResults] = useState([]);
+  const [totalInCity, setTotalInCity] = useState(0);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -254,6 +267,10 @@ function App() {
 
   useEffect(() => {
     const params = new URLSearchParams({ sort, page });
+    if (city) params.set("city", city);
+    if (checkIn) params.set("check_in", checkIn);
+    if (checkOut) params.set("check_out", checkOut);
+    if (adults > 1) params.set("min_capacity", adults);
     if (filters.price[0] > 500) params.set("price_min", filters.price[0]);
     if (filters.price[1] < 20000) params.set("price_max", filters.price[1]);
     if (filters.stars.length === 1) params.set("stars", filters.stars[0]);
@@ -264,14 +281,14 @@ function App() {
           setResults(d.hotels.map(h => ({
             id: h.id, name: h.name, type: `${h.stars} Yıldız`, district: h.district || h.city,
             stars: h.stars, rating: h.rating * 2, reviews: h.reviews_count,
-            price: h.price_per_night, ph: "ph-r1", featured: false,
+            price: h.price_per_night, thumbnail: h.thumbnail, featured: false,
             amen: [], perks: [], cancel: false, breakfast: false, note: "",
           })));
           setTotalInCity(d.total);
         }
       })
       .catch(() => {});
-  }, [filters, sort, page]);
+  }, [city, checkIn, checkOut, adults, filters, sort, page]);
 
   const filtered = useMemo(() => {
     let xs = results.filter(r =>
@@ -314,21 +331,24 @@ function App() {
           <div className="container crumbs-inner">
             <a href="index.html">Anasayfa</a>
             <span className="sep">/</span>
-            <a href="#">Türkiye</a>
-            <span className="sep">/</span>
-            <span className="here">İstanbul</span>
+            <span className="here">{city || "Tüm Oteller"}</span>
           </div>
         </div>
 
         <div className="container">
           <div className="results-wrap">
-            <Sidebar filters={filters} setFilters={setFilters} onApply={() => flash(`${filtered.length} otel filtrelendi`)} />
+            <Sidebar filters={filters} setFilters={setFilters} results={results} onApply={() => flash(`${filtered.length} otel filtrelendi`)} />
 
             <main>
               <div className="summary">
                 <div>
-                  <h1>İstanbul'da <b>{totalInCity}</b> otel bulundu</h1>
-                  <p>15 May – 18 May · 2 yetişkin · 1 oda</p>
+                  <h1>{city ? `${city}'da` : "Tüm otellerde"} <b>{totalInCity}</b> otel bulundu</h1>
+                  <p>
+                    {city || "Tüm şehirler"}
+                    {checkIn && checkOut && ` · ${checkIn} → ${checkOut}`}
+                    {adults > 1 && ` · ${adults} misafir`}
+                    {rooms > 1 && ` · ${rooms} oda`}
+                  </p>
                 </div>
                 <div className="sort">
                   <label htmlFor="sort">Sırala</label>
@@ -356,7 +376,7 @@ function App() {
                 {filtered.map(r => (
                   <ResultCard key={r.id} r={r}
                     fav={favs.has(r.id)} onFav={() => toggleFav(r.id)}
-                    onView={() => { window.location.href = "hotel-detail.html"; }} />
+                    onView={() => { window.location.href = "hotel-detail.html?id=" + r.id; }} />
                 ))}
                 {filtered.length === 0 && (
                   <div style={{ padding:60, textAlign:"center", color:"var(--muted)", background:"#fff", borderRadius:16, border:"1px solid var(--line)" }}>

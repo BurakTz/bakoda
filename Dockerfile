@@ -3,11 +3,10 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir poetry==1.8.5 && \
-    poetry config virtualenvs.in-project true
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml poetry.lock* ./
-RUN poetry install --only main --no-root
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
@@ -17,14 +16,13 @@ WORKDIR /app
 # Non-root user
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /install /usr/local
 COPY src ./src
 COPY frontend ./frontend
 COPY alembic ./alembic
 COPY alembic.ini ./
 
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000

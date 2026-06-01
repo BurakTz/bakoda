@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.models import User
-from src.schemas import BookingListOut, FavoriteOut, UserOut, UserUpdate
-from src.services.auth_service import get_current_user
+from src.schemas import BookingListOut, ChangePasswordIn, FavoriteOut, UserOut, UserUpdate
+from src.services.auth_service import get_current_user, hash_password, verify_password
 from src.services import user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -23,6 +23,19 @@ async def update_me(
 ):
     updated = await user_service.update_user(db, current_user, payload.model_dump(exclude_none=True))
     return UserOut.model_validate(updated)
+
+
+@router.post("/me/change-password", status_code=200)
+async def change_password(
+    payload: ChangePasswordIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Mevcut şifre yanlış")
+    current_user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+    return {"message": "Şifre güncellendi"}
 
 
 @router.delete("/me", status_code=204)
@@ -47,6 +60,7 @@ async def my_bookings(
         if b.room and b.room.hotel:
             out.hotel_name = b.room.hotel.name
             out.hotel_city = b.room.hotel.city
+            out.hotel_id = b.room.hotel.id
         result.append(out)
     return result
 

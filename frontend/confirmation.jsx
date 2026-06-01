@@ -2,22 +2,18 @@
 
 const { useState, useRef, useEffect } = React;
 
-// ── Data ──────────────────────────────────────────────────────────────
-const RES = {
-  code: "BKD-2026-48291",
-  email: "selin@ornek.com",
-  guestName: "Selin Karaca",
-  hotel: "Çırağan Palace Suites",
-  district: "İstanbul, Beşiktaş",
-  checkIn:  { date: "26 Mayıs",   year: 2026, day: "Pazartesi", time: "15:00 itibaren" },
-  checkOut: { date: "29 Mayıs",   year: 2026, day: "Perşembe", time: "12:00'ye kadar" },
-  guests: "2 yetişkin",
-  rooms:  "1 oda",
-  roomType: "Deluxe Süit",
-  total: 26052,
-  paymentMethod: "Visa",
-  cardLast4: "4521",
-};
+const DAYS_TR = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+const MONTHS_TR = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+function parseCheckDate(s, checkInTime, checkOutTime, isOut) {
+  if (!s) return { date: "—", year: 2026, day: "—", time: isOut ? "12:00'ye kadar" : "15:00 itibaren" };
+  const d = new Date(s);
+  return {
+    date: `${d.getDate()} ${MONTHS_TR[d.getMonth()]}`,
+    year: d.getFullYear(),
+    day: DAYS_TR[d.getDay()],
+    time: isOut ? (checkOutTime ? checkOutTime + "'ye kadar" : "12:00'ye kadar") : (checkInTime ? checkInTime + " itibaren" : "15:00 itibaren"),
+  };
+}
 
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
 
@@ -102,25 +98,48 @@ function Confetti() {
 function App() {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState({ on: false, msg: "" });
-  const [res, setRes] = useState(RES);
+  const [res, setRes] = useState({
+    code: "—", email: "—", guestName: "—",
+    hotel: "—", district: "—",
+    checkIn:  { date: "—", year: 2026, day: "—", time: "15:00 itibaren" },
+    checkOut: { date: "—", year: 2026, day: "—", time: "12:00'ye kadar" },
+    guests: "—", rooms: "1 oda", roomType: "—",
+    total: 0, paymentMethod: "Kart", cardLast4: "****",
+    nights: 1,
+  });
   const toastT = useRef(null);
 
   useEffect(() => {
     const bookingId = sessionStorage.getItem("bakoda_booking_id");
-    if (!bookingId) return;
-    fetch(`/api/bookings/${bookingId}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.id) setRes(prev => ({
-          ...prev,
-          code: data.confirmation_code || prev.code,
-          checkIn: data.check_in || prev.checkIn,
-          checkOut: data.check_out || prev.checkOut,
-          guests: data.guests || prev.guests,
-          total: data.total_price || prev.total,
-        }));
-      })
-      .catch(() => {});
+    const hotelId   = sessionStorage.getItem("bakoda_hotel_id");
+
+    const fetchAll = async () => {
+      let booking = null, hotel = null;
+      if (bookingId) {
+        try { const r = await fetch(`/api/bookings/${bookingId}`); booking = await r.json(); } catch {}
+      }
+      if (hotelId) {
+        try { const r = await fetch(`/api/hotels/${hotelId}`); hotel = await r.json(); } catch {}
+      }
+      if (!booking?.id) return;
+      const nights = booking.check_in && booking.check_out
+        ? Math.round((new Date(booking.check_out) - new Date(booking.check_in)) / 86400000) : 1;
+      setRes(prev => ({
+        ...prev,
+        code:         booking.confirmation_code || prev.code,
+        email:        booking.guest_email || prev.email,
+        guestName:    booking.guest_name  || prev.guestName,
+        checkIn:      parseCheckDate(booking.check_in,  hotel?.check_in_time,  hotel?.check_out_time, false),
+        checkOut:     parseCheckDate(booking.check_out, hotel?.check_in_time,  hotel?.check_out_time, true),
+        guests:       `${booking.guests || 1} yetişkin`,
+        rooms:        `${booking.rooms_count || 1} oda`,
+        total:        booking.total_price || prev.total,
+        nights,
+        hotel:        hotel?.name    || prev.hotel,
+        district:     hotel ? `${hotel.city}${hotel.district ? ", " + hotel.district : ""}` : prev.district,
+      }));
+    };
+    fetchAll();
   }, []);
 
   const flash = (msg) => {
@@ -159,7 +178,7 @@ function App() {
             </div>
             <h1>Rezervasyonunuz Onaylandı</h1>
             <div className="email-line">
-              Onay e-postası gönderildi: <b>{RES.email}</b>
+              Onay e-postası gönderildi: <b>{res.email}</b>
             </div>
           </div>
 
@@ -169,7 +188,7 @@ function App() {
               <div className="head-left">
                 <div className="lbl">Rezervasyon No</div>
                 <div className="code">
-                  #{RES.code}
+                  #{res.code}
                   <button className={`copy-btn ${copied ? "copied" : ""}`} type="button" aria-label="Kodu kopyala" onClick={copyCode}>
                     {copied ? <IconCheck size={14} /> : <CopyIcon />}
                   </button>
@@ -187,8 +206,8 @@ function App() {
               <div className="hotel-row">
                 <div className="hotel-thumb" aria-hidden="true" />
                 <div className="hotel-info">
-                  <div className="hotel-name">{RES.hotel}</div>
-                  <div className="hotel-loc"><IconMapPin size={12} /> {RES.district}</div>
+                  <div className="hotel-name">{res.hotel}</div>
+                  <div className="hotel-loc"><IconMapPin size={12} /> {res.district}</div>
                 </div>
               </div>
 
@@ -196,14 +215,14 @@ function App() {
               <div className="dates">
                 <div className="date-block">
                   <span className="lbl"><IconCalendar size={11} /> Giriş</span>
-                  <div className="day">{RES.checkIn.date} <small>{RES.checkIn.year}</small></div>
-                  <div className="time">{RES.checkIn.day} · {RES.checkIn.time}</div>
+                  <div className="day">{res.checkIn.date} <small>{res.checkIn.year}</small></div>
+                  <div className="time">{res.checkIn.day} · {res.checkIn.time}</div>
                 </div>
                 <div className="date-arrow"><IconArrow size={16} /></div>
                 <div className="date-block" style={{ textAlign: "right" }}>
                   <span className="lbl" style={{ flexDirection: "row-reverse" }}>Çıkış <IconCalendar size={11} /></span>
-                  <div className="day">{RES.checkOut.date} <small>{RES.checkOut.year}</small></div>
-                  <div className="time">{RES.checkOut.day} · {RES.checkOut.time}</div>
+                  <div className="day">{res.checkOut.date} <small>{res.checkOut.year}</small></div>
+                  <div className="time">{res.checkOut.day} · {res.checkOut.time}</div>
                 </div>
               </div>
 
@@ -211,17 +230,17 @@ function App() {
               <div className="meta-grid">
                 <div className="meta-item">
                   <div className="lbl">Misafir</div>
-                  <div className="val">{RES.guests}</div>
-                  <div className="sub">{RES.guestName}</div>
+                  <div className="val">{res.guests}</div>
+                  <div className="sub">{res.guestName}</div>
                 </div>
                 <div className="meta-item">
                   <div className="lbl">Oda</div>
-                  <div className="val">{RES.rooms}</div>
-                  <div className="sub">{RES.roomType}</div>
+                  <div className="val">{res.rooms}</div>
+                  <div className="sub">{res.roomType}</div>
                 </div>
                 <div className="meta-item">
                   <div className="lbl">Konaklama</div>
-                  <div className="val">3 gece</div>
+                  <div className="val">{res.nights} gece</div>
                   <div className="sub">Kahvaltı dahil</div>
                 </div>
               </div>
@@ -231,12 +250,12 @@ function App() {
                 <div className="lhs">
                   <div className="lbl">Ödeme</div>
                   <div className="pay">
-                    <span className="card-chip"><IconShield size={11} /> {RES.paymentMethod} **** {RES.cardLast4}</span>
+                    <span className="card-chip"><IconShield size={11} /> {res.paymentMethod} **** {res.cardLast4}</span>
                   </div>
                 </div>
                 <div className="rhs">
                   <div className="lbl">Toplam Ödendi</div>
-                  <div className="val">{fmtTL(RES.total)}</div>
+                  <div className="val">{fmtTL(res.total)}</div>
                   <span className="ok-pill"><IconCheck size={10} /> Tahsil Edildi</span>
                 </div>
               </div>
@@ -248,7 +267,7 @@ function App() {
             <button className="btn btn-primary" type="button" onClick={() => flash("PDF makbuz indiriliyor…")}>
               <DownloadIcon /> PDF İndir
             </button>
-            <button className="btn btn-secondary" type="button" onClick={() => flash(`Onay yeniden gönderildi: ${RES.email}`)}>
+            <button className="btn btn-secondary" type="button" onClick={() => flash(`Onay yeniden gönderildi: ${res.email}`)}>
               <MailIcon /> E-posta Gönder
             </button>
             <button className="btn btn-secondary" type="button" onClick={() => flash("Takvim dosyası (.ics) indirildi")}>

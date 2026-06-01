@@ -2,20 +2,49 @@
 
 const { useState, useRef, useEffect, useMemo } = React;
 
-const BOOKING = {
-  hotel: "Çırağan Palace Suites",
-  district: "İstanbul, Beşiktaş",
+// URL parametrelerinden gelen rezervasyon verisini oku
+const _p = new URLSearchParams(window.location.search);
+const _parseDate = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d; };
+const _t0 = new Date(); _t0.setHours(0,0,0,0);
+
+let BOOKING = {
+  hotel: "Yükleniyor…",
+  district: "",
   stars: 5,
   thumb: "[ otel ]",
-  checkIn: new Date(2026, 4, 26),   // 26 May 2026
-  checkOut: new Date(2026, 4, 29),  // 29 May 2026
-  adults: 2,
-  rooms: 1,
-  roomType: "Deluxe Süit, Park Manzaralı",
-  pricePerNight: 8400,
+  checkIn:  _parseDate(_p.get("check_in"))  || new Date(_t0.getTime() + 7*86400000),
+  checkOut: _parseDate(_p.get("check_out")) || new Date(_t0.getTime() + 10*86400000),
+  adults: parseInt(_p.get("adults") || "2"),
+  rooms: parseInt(_p.get("rooms") || "1"),
+  roomType: "Oda",
+  pricePerNight: 0,
   discountPct: 8,
   cleaning: 500,
+  roomId: parseInt(_p.get("room_id") || "0"),
+  hotelId: parseInt(_p.get("hotel_id") || "1"),
 };
+
+// Otel + oda verisini API'dan çek
+(function() {
+  const hotelId = BOOKING.hotelId;
+  if (!hotelId) return;
+  fetch(`/api/hotels/${hotelId}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.id) return;
+      BOOKING.hotel = data.name;
+      BOOKING.district = `${data.city}${data.district ? ", " + data.district : ""}`;
+      BOOKING.stars = data.stars;
+      const room = (data.rooms || []).find(r => r.id === BOOKING.roomId) || data.rooms?.[0];
+      if (room) {
+        BOOKING.roomType = room.name || room.type;
+        BOOKING.pricePerNight = room.price_per_night;
+        BOOKING.roomId = room.id;
+        sessionStorage.setItem("bakoda_room_id", room.id);
+      }
+    })
+    .catch(() => {});
+})();
 
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
 const fmtTLcompact = (n) => "₺" + new Intl.NumberFormat("tr-TR").format(n);

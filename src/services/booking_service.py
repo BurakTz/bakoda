@@ -30,7 +30,9 @@ async def _is_room_available(db: AsyncSession, room_id: int, check_in: date, che
     return result.scalar_one_or_none() is None
 
 
-def _make_confirmation_code(booking_id: int) -> str:
+def _make_confirmation_code(booking_id: int | None) -> str:
+    if booking_id is None:
+        return "BKD-0000-2026"
     return f"BKD-{booking_id:04d}-2026"
 
 

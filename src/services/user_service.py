@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.models import Booking, BookingStatus, Favorite, User
+from src.models import Booking, BookingStatus, Favorite, Room, User
 
 
 async def get_user_bookings(
@@ -14,7 +14,7 @@ async def get_user_bookings(
 ) -> list[Booking]:
     stmt = (
         select(Booking)
-        .options(selectinload(Booking.room).selectinload("hotel"))
+        .options(selectinload(Booking.room).selectinload(Room.hotel))
         .where(Booking.user_id == user_id)
     )
 

@@ -55,7 +55,7 @@ function FavCard({ f, removing, onRemove, onView }) {
 }
 
 function App() {
-  const [favs, setFavs] = useState(FAVS);
+  const [favs, setFavs] = useState([]);
   const [removing, setRemoving] = useState(new Set());
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
@@ -117,7 +117,7 @@ function App() {
             {favs.map(f => (
               <FavCard key={f.id} f={f} removing={removing.has(f.id)}
                 onRemove={remove}
-                onView={() => { window.location.href = "hotel-detail.html"; }} />
+                onView={() => { window.location.href = "hotel-detail.html?id=" + f.id; }} />
             ))}
           </div>
         ) : (
