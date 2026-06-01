@@ -6,6 +6,74 @@ const COUNTRIES = ["Türkiye","Almanya","Birleşik Krallık","Fransa","İtalya",
 const LANGUAGES = ["Türkçe","English","Deutsch","Français","Español"];
 const CURRENCIES = ["TRY ₺","EUR €","USD $","GBP £"];
 
+const LANG_TO_CODE = { "Türkçe": "tr", "English": "en", "Deutsch": "de", "Français": "fr", "Español": "es" };
+const CODE_TO_LANG = { tr: "Türkçe", en: "English", de: "Deutsch", fr: "Français", es: "Español" };
+const CURR_TO_CODE = { "TRY ₺": "TRY", "EUR €": "EUR", "USD $": "USD", "GBP £": "GBP" };
+const CODE_TO_CURR = { TRY: "TRY ₺", EUR: "EUR €", USD: "USD $", GBP: "GBP £" };
+
+function countryFromApi(value) {
+  if (!value || value === "TR") return "Türkiye";
+  return value;
+}
+
+function languageFromApi(code) {
+  if (!code) return "Türkçe";
+  const key = String(code).toLowerCase();
+  return CODE_TO_LANG[key] || code;
+}
+
+function currencyFromApi(code) {
+  if (!code) return "TRY ₺";
+  const key = String(code).toUpperCase();
+  return CODE_TO_CURR[key] || code;
+}
+
+function mapUserToForm(data, prev) {
+  return {
+    firstName: data.first_name || prev.firstName,
+    lastName: data.last_name || prev.lastName,
+    email: data.email || prev.email,
+    phone: data.phone || "",
+    birthday: data.birthday || "",
+    gender: data.gender || prev.gender,
+    country: countryFromApi(data.country),
+    language: languageFromApi(data.language),
+    currency: currencyFromApi(data.currency),
+    emailNotif: data.notify_email ?? prev.emailNotif,
+    smsNotif: data.notify_sms ?? prev.smsNotif,
+    dealsNotif: data.notify_deals ?? prev.dealsNotif,
+    marketingNotif: data.notify_marketing ?? prev.marketingNotif,
+  };
+}
+
+function buildProfilePayload(form) {
+  return {
+    first_name: form.firstName.trim(),
+    last_name: form.lastName.trim(),
+    phone: form.phone.trim() || null,
+    birthday: form.birthday || null,
+    gender: form.gender || null,
+    country: form.country || null,
+    language: LANG_TO_CODE[form.language] || form.language,
+    currency: CURR_TO_CODE[form.currency] || String(form.currency).split(" ")[0],
+    notify_email: form.emailNotif,
+    notify_sms: form.smsNotif,
+    notify_deals: form.dealsNotif,
+    notify_marketing: form.marketingNotif,
+  };
+}
+
+function profileSaveErrorMessage(payload, status) {
+  if (!payload) return status === 401 ? "Oturum süresi doldu, tekrar giriş yapın" : "Profil kaydedilemedi, tekrar deneyin";
+  const detail = payload.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length) {
+    const first = detail[0];
+    return first?.msg || "Profil kaydedilemedi, tekrar deneyin";
+  }
+  return "Profil kaydedilemedi, tekrar deneyin";
+}
+
 function PrefRow({ ttl, sub, on, onChange }) {
   return (
     <div className="pref">
@@ -31,6 +99,7 @@ function App() {
     emailNotif: true, smsNotif: false, dealsNotif: true, marketingNotif: false,
   });
   const [loading, setLoading] = useState(!!token);
+  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState({ on:false, msg:"" });
@@ -42,22 +111,17 @@ function App() {
       .then(r => r.ok ? r.json() : null)
       .then((data) => {
         if (!data) return;
-        setForm((prev) => ({
-          ...prev,
-          firstName: data.first_name || prev.firstName,
-          lastName: data.last_name || prev.lastName,
-          email: data.email || prev.email,
-          phone: data.phone || "",
-          birthday: data.birthday || "",
-          gender: data.gender || prev.gender,
-          country: data.country === "TR" ? "Türkiye" : (data.country || prev.country),
-        }));
+        setForm((prev) => mapUserToForm(data, prev));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
 
-  const set = (k, v) => { setForm({...form, [k]: v}); setDirty(true); if (errors[k]) setErrors({...errors, [k]: null}); };
+  const set = (k, v) => {
+    setForm((prev) => ({ ...prev, [k]: v }));
+    setDirty(true);
+    if (errors[k]) setErrors((prev) => ({ ...prev, [k]: null }));
+  };
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -76,23 +140,36 @@ function App() {
 
   const save = async (ev) => {
     ev.preventDefault();
-    if (!validate()) return;
-    const token = localStorage.getItem("bakoda_token");
-    if (token) {
-      try {
-        const res = await fetch("/api/users/me", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ first_name: form.firstName, last_name: form.lastName, phone: form.phone }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          localStorage.setItem("bakoda_user", JSON.stringify(data));
-        }
-      } catch {}
+    if (!validate()) {
+      flash("Lütfen işaretli alanları düzeltin");
+      return;
     }
-    flash("Değişiklikler kaydedildi");
-    setDirty(false);
+    const auth = localStorage.getItem("bakoda_token");
+    if (!auth) {
+      flash("Kaydetmek için giriş yapın");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/users/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth}` },
+        body: JSON.stringify(buildProfilePayload(form)),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        flash(profileSaveErrorMessage(payload, res.status));
+        return;
+      }
+      localStorage.setItem("bakoda_user", JSON.stringify(payload));
+      setForm((prev) => mapUserToForm(payload, prev));
+      flash("Değişiklikler kaydedildi");
+      setDirty(false);
+    } catch {
+      flash("Bağlantı hatası, tekrar deneyin");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -138,9 +215,11 @@ function App() {
           </div>
           <div className="field">
             <label htmlFor="email">E-posta</label>
-            <input id="email" type="email" className={`input ${errors.email?"err":""}`}
-                   value={form.email} onChange={(e) => set("email", e.target.value)} />
-            {errors.email && <span className="err-msg"><IconClose size={11} /> {errors.email}</span>}
+            <input id="email" type="email" className="input" readOnly aria-readonly="true"
+                   value={form.email} title="E-posta güvenlik sayfasından değiştirilebilir" />
+            <span className="field-hint" style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+              E-posta adresi buradan değiştirilemez.
+            </span>
           </div>
           <div className="field">
             <label htmlFor="phone">Telefon</label>
@@ -205,8 +284,8 @@ function App() {
           <div className="info">{dirty ? "Kaydedilmemiş değişiklikler var" : "Tüm değişiklikler kaydedildi"}</div>
           <div className="actions">
             <button type="button" className="btn btn-ghost" onClick={() => { window.location.reload(); }}>Sıfırla</button>
-            <button type="submit" className="btn btn-cta" disabled={!dirty}>
-              <IconCheck size={14} /> Değişiklikleri Kaydet
+            <button type="submit" className="btn btn-cta" disabled={!dirty || saving}>
+              <IconCheck size={14} /> {saving ? "Kaydediliyor…" : "Değişiklikleri Kaydet"}
             </button>
           </div>
         </div>

@@ -129,29 +129,6 @@ const APP_I18N = {
   },
 };
 
-// ── Data ──────────────────────────────────────────────────────────────
-const DESTINATIONS = [
-{ name: "İstanbul", country: "Türkiye", hotels: 1284, slug: "istanbul", ph: "ph-istanbul", marker: "ist · 41.0082°N" },
-{ name: "Paris", country: "Fransa", hotels: 962, slug: "paris", ph: "ph-paris", marker: "cdg · 48.8566°N" },
-{ name: "Bali", country: "Endonezya", hotels: 437, slug: "bali", ph: "ph-bali", marker: "dps · 8.3405°S" }];
-
-
-const HOTELS = [
-{ id: 1, name: "Çırağan Palace Suites", city: "İstanbul, Beşiktaş", rating: 9.8, reviews: 1284, price: 8400, currency: "₺", featured: true, ph: "ph-h1", tags: ["Boğaz Manzarası", "Spa", "Havuz"], note: "luxe · waterfront" },
-{ id: 2, name: "Maison Lumière Marais", city: "Paris, 3. Bölge", rating: 9.6, reviews: 642, price: 4200, currency: "€", featured: true, ph: "ph-h2", tags: ["Şehir Merkezi", "Restoran"], note: "boutique · 18 oda" },
-{ id: 3, name: "Villa Ananda Ubud", city: "Bali, Ubud", rating: 9.9, reviews: 318, price: 380, currency: "$", featured: true, ph: "ph-h4", tags: ["Pirinç Terası", "Yoga"], note: "retreat · jungle" },
-{ id: 4, name: "The Cappadocia Cave Resort", city: "Nevşehir, Ürgüp", rating: 9.7, reviews: 891, price: 6200, currency: "₺", featured: false, ph: "ph-h3", tags: ["Mağara Oda", "Manzara"], note: "stone · honey" },
-{ id: 5, name: "Casa Solana Riviera", city: "Antalya, Kalkan", rating: 9.4, reviews: 524, price: 5800, currency: "₺", featured: false, ph: "ph-h5", tags: ["Plaj", "Özel Havuz"], note: "terracotta · sea" },
-{ id: 6, name: "Hôtel Aubépine Rive Gauche", city: "Paris, 6. Bölge", rating: 9.5, reviews: 412, price: 3650, currency: "€", featured: false, ph: "ph-h6", tags: ["Sanat", "Bahçe"], note: "atelier · garden" }];
-
-
-const TRENDING_QUERIES = [
-{ name: "Kapadokya", meta: "Mağara otelleri · Türkiye", ph: "ph-h3" },
-{ name: "Bodrum", meta: "Sahil otelleri · Türkiye", ph: "ph-h4" },
-{ name: "Roma", meta: "Şehir merkezi · İtalya", ph: "ph-h5" },
-{ name: "Santorini", meta: "Kaldera manzarası · Yunanistan", ph: "ph-h2" }];
-
-
 // ── Helpers ───────────────────────────────────────────────────────────
 const fmtMoney = (n, c) => {
   const s = new Intl.NumberFormat("tr-TR").format(n);
@@ -179,7 +156,9 @@ function persistSearchState(state) {
 // ── Search card ─────────────────────────────────────────────────────────────────────
 function SearchCard({ onSearch }) {
   const { t } = useI18n(APP_I18N);
-  const [loc, setLoc] = useState("İstanbul");
+  const [loc, setLoc] = useState("");
+  const [trending, setTrending] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [showSuggest, setShowSuggest] = useState(false);
   const [showCalendar, setShowCalendar] = useState(null); // "in" | "out" | null
   const [showGuests, setShowGuests] = useState(false);
@@ -193,11 +172,34 @@ function SearchCard({ onSearch }) {
   const [rooms, setRooms] = useState(1);
   const card = useRef(null);
 
-  const filtered = useMemo(() => {
-    const q = loc.trim().toLowerCase();
-    if (!q) return TRENDING_QUERIES;
-    return TRENDING_QUERIES.filter((d) => d.name.toLowerCase().includes(q) || d.meta.toLowerCase().includes(q));
+  useEffect(() => {
+    fetch("/api/hotels/locations?limit=8")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setTrending(data); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const q = loc.trim();
+    if (!q) {
+      setLocations([]);
+      return undefined;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({ q, limit: "8" });
+      fetch(`/api/hotels/locations?${params}`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((data) => { if (Array.isArray(data)) setLocations(data); })
+        .catch(() => {});
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [loc]);
+
+  const filtered = useMemo(() => (loc.trim() ? locations : trending), [loc, locations, trending]);
 
   // outside click
   useEffect(() => {
@@ -210,7 +212,12 @@ function SearchCard({ onSearch }) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const pickLoc = (d) => {setLoc(d.name);setShowSuggest(false);};
+  const pickLoc = (d) => {
+    if (d.kind === "district") setLoc(d.name);
+    else if (d.kind === "hotel") setLoc(d.city);
+    else setLoc(d.name);
+    setShowSuggest(false);
+  };
   const nights = Math.max(1, Math.round((checkOut - checkIn) / 86400000));
   const submitSearch = () => {
     const city = String(loc || "").trim();
@@ -253,15 +260,19 @@ function SearchCard({ onSearch }) {
         {showSuggest &&
         <div className="suggest">
             <div style={{ padding: "6px 12px 4px", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".12em", color: "var(--muted)", textTransform: "uppercase" }}>
-              {loc ? t("search.results") : t("search.popular")}
+              {loc.trim() ? t("search.results") : t("search.popular")}
             </div>
             {filtered.map((d, i) =>
-          <div key={d.name} className={`suggest-item ${i === activeIdx ? "active" : ""}`}
+          <div key={`${d.kind}-${d.name}-${d.city}`} className={`suggest-item ${i === activeIdx ? "active" : ""}`}
           onMouseEnter={() => setActiveIdx(i)} onClick={() => pickLoc(d)}>
-                <div className={`ico ph ${d.ph}`} style={{ position: "relative" }}><IconMapPin size={14} /></div>
+                <div className="ico ph ph-h1" style={{ position: "relative" }}><IconMapPin size={14} /></div>
                 <div>
                   <div style={{ fontWeight: 500 }}>{d.name}</div>
-                  <div className="meta">{d.meta}</div>
+                  <div className="meta">
+                    {d.kind === "district" ? `${d.city} · ${d.country}`
+                      : d.kind === "hotel" ? `${d.city} · ${d.country}`
+                      : `${d.country} · ${d.hotels} otel`}
+                  </div>
                 </div>
               </div>
           )}
@@ -416,6 +427,15 @@ function Hero({ headline, onSearch }) {
 // ── Destinations ──────────────────────────────────────────────────────
 function Destinations() {
   const { t, lang } = useI18n(APP_I18N);
+  const [destinations, setDestinations] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/hotels/destinations?limit=6")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setDestinations(data); })
+      .catch(() => {});
+  }, []);
+
   return (
     <section data-screen-label="Destinations">
       <div className="container">
@@ -429,10 +449,10 @@ function Destinations() {
         </div>
 
         <div className="dest-grid">
-          {DESTINATIONS.map((d, i) =>
+          {destinations.map((d, i) =>
           <a key={d.slug} className="dest-card fade-in" href={`search-results.html?city=${encodeURIComponent(d.name)}`} style={{ animationDelay: `${i * 60}ms` }}>
-              <div className="dest-img" style={{ background: `url(https://picsum.photos/seed/dest_${d.slug}/600/400) center/cover` }} />
-              <div className="dest-marker">{d.marker}</div>
+              <div className="dest-img" style={{ background: `url(${d.image || `https://picsum.photos/seed/dest_${d.slug}/600/400`}) center/cover` }} />
+              <div className="dest-marker">{d.slug} · {d.country}</div>
               <div className="dest-body">
                 <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(255,255,255,.7)" }}>
                   {d.country}
@@ -452,15 +472,23 @@ function Destinations() {
 }
 
 // ── Hotel card ────────────────────────────────────────────────────────
+function hotelImgFallback(id) {
+  return `https://picsum.photos/seed/hotel_${id}_0/600/400`;
+}
+
 function HotelCard({ h, fav, onFav, onView }) {
   const { t, lang } = useI18n(APP_I18N);
+  const fallback = hotelImgFallback(h.id);
   return (
     <article className="hotel-card" onClick={onView}>
       <div className="hotel-img">
-        {h.thumbnail
-          ? <img src={h.thumbnail} alt={h.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
-          : <img src={`https://picsum.photos/seed/hotel_${h.id}_0/600/400`} alt={h.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
-        }
+        <img
+          src={h.thumbnail || fallback}
+          alt={h.name}
+          style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+          loading="lazy"
+          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = fallback; }}
+        />
         {h.featured && <span className="hotel-badge">{t("hotel.featured")}</span>}
         <button className={`fav ${fav ? "on" : ""}`} type="button" aria-label={t("hotel.addFav")}
         onClick={(e) => {e.stopPropagation();onFav();}}>
@@ -470,9 +498,9 @@ function HotelCard({ h, fav, onFav, onView }) {
       <div className="hotel-body">
         <div className="hotel-rating">
           <span className="stars" aria-hidden="true">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => <IconStar key={i} size={13} filled={i < Math.round(h.rating)} />)}
+            {Array.from({ length: h.stars || 0 }).map((_, i) => <IconStar key={i} size={13} filled />)}
           </span>
-          <b>{h.rating.toFixed(1)}/10</b>
+          {(h.reviews > 0) && <b>{h.rating.toFixed(1)}/10</b>}
           <span className="reviews">({new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(h.reviews)} {t("hotel.reviews")})</span>
         </div>
         <h3 className="hotel-name">{h.name}</h3>
@@ -499,16 +527,17 @@ function HotelCard({ h, fav, onFav, onView }) {
 function Featured({ cols, onView }) {
   const { t } = useI18n(APP_I18N);
   const [favs, setFavs] = useState(new Set());
-  const [hotels, setHotels] = useState(HOTELS);
+  const [hotels, setHotels] = useState([]);
 
   useEffect(() => {
     fetch("/api/hotels?sort=rating&page=1")
       .then(r => r.json())
       .then(d => { if (d.hotels && d.hotels.length) setHotels(d.hotels.slice(0, 6).map(h => ({
         id: h.id, name: h.name, city: `${h.city}${h.district ? ", " + h.district : ""}`,
-        rating: h.rating || 0,
-        reviews: h.reviews_count || 0, price: h.price_per_night, currency: "₺",
-        featured: true, ph: "ph-h1", tags: [], note: "",
+        rating: Number(h.rating) || 0,
+        reviews: Number(h.reviews_count) || 0, price: h.price_per_night, currency: "₺",
+        stars: h.stars,
+        featured: true, thumbnail: h.thumbnail, tags: [], note: "",
       }))); })
       .catch(() => {});
   }, []);

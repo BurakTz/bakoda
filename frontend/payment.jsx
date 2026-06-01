@@ -90,14 +90,17 @@ const DEFAULT_PROFILE_ADDR = {
   zip: "34000",
   country: "Türkiye",
 };
-function getProfileAddress() {
-  const stored = localStorage.getItem("bakoda_billing_address");
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      return { ...DEFAULT_PROFILE_ADDR, ...parsed };
-    } catch {}
-  }
+function mapBillingFromApi(data) {
+  return {
+    name: data.name || "",
+    street: data.line || "",
+    district: data.district || "—",
+    city: data.city || "",
+    zip: data.zip_code || "",
+    country: data.country || "Türkiye",
+  };
+}
+function guestProfileAddress() {
   const userRaw = localStorage.getItem("bakoda_user");
   if (userRaw) {
     try {
@@ -109,6 +112,20 @@ function getProfileAddress() {
     } catch {}
   }
   return DEFAULT_PROFILE_ADDR;
+}
+function apiAuthHeaders(token) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+function parseCardExp(exp) {
+  const m = (exp || "").trim().match(/^(\d{1,2})\/(\d{2})$/);
+  if (!m) return null;
+  const month = parseInt(m[1], 10);
+  const year = parseInt(m[2], 10);
+  if (month < 1 || month > 12) return null;
+  return { exp_month: month, exp_year: year };
 }
 
 function calcPricing(bk) {
@@ -313,7 +330,17 @@ function PaymentForm({ onConfirm, profileAddr, backHref, disabled, submitting, s
 
   const submit = (ev) => {
     ev.preventDefault();
-    if (validate() && !disabled && !submitting) onConfirm({ brand, last4: card.replace(/\s/g,"").slice(-4) });
+    if (validate() && !disabled && !submitting) {
+      onConfirm({
+        brand: brand || "visa",
+        last4: card.replace(/\s/g, "").slice(-4),
+        holderName: name.trim(),
+        exp,
+        saveCard,
+        sameAddr,
+        addr,
+      });
+    }
   };
 
   return (
@@ -481,7 +508,19 @@ function App() {
     adults: 2, rooms: 1,
     pricePerNight: 0, apiTotal: 0,
   });
-  const profileAddr = getProfileAddress();
+  const [profileAddr, setProfileAddr] = useState(DEFAULT_PROFILE_ADDR);
+
+  useEffect(() => {
+    const token = localStorage.getItem("bakoda_token");
+    if (!token) {
+      setProfileAddr(guestProfileAddress());
+      return;
+    }
+    fetch("/api/users/me/billing-address", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setProfileAddr(data ? mapBillingFromApi(data) : guestProfileAddress()))
+      .catch(() => setProfileAddr(guestProfileAddress()));
+  }, [refreshTick]);
 
   useEffect(() => {
     if (!context.valid) {
@@ -557,6 +596,7 @@ function App() {
     setSubmitting(true);
     setSubmitError("");
     const pricing = calcPricing(bk);
+    const token = localStorage.getItem("bakoda_token");
     try {
       const paymentRes = await fetch("/api/payments", {
         method: "POST",
@@ -570,6 +610,47 @@ function App() {
       let payload = null;
       try { payload = await paymentRes.json(); } catch {}
       if (!paymentRes.ok) throw new Error(payload?.detail || "Ödeme işlemi başarısız.");
+
+      if (token) {
+        const persistOps = [];
+        if (info.saveCard) {
+          const parsed = parseCardExp(info.exp);
+          if (parsed) {
+            persistOps.push(
+              fetch("/api/users/me/payment-methods", {
+                method: "POST",
+                headers: apiAuthHeaders(token),
+                body: JSON.stringify({
+                  brand: info.brand || "visa",
+                  last4: info.last4,
+                  holder_name: info.holderName,
+                  exp_month: parsed.exp_month,
+                  exp_year: parsed.exp_year,
+                  card_type: "Kredi",
+                  is_default: false,
+                }),
+              })
+            );
+          }
+        }
+        if (!info.sameAddr) {
+          persistOps.push(
+            fetch("/api/users/me/billing-address", {
+              method: "PUT",
+              headers: apiAuthHeaders(token),
+              body: JSON.stringify({
+                name: info.holderName,
+                line: info.addr.line,
+                district: "",
+                city: info.addr.city,
+                zip_code: info.addr.zip,
+                country: info.addr.country,
+              }),
+            })
+          );
+        }
+        if (persistOps.length) await Promise.allSettled(persistOps);
+      }
 
       sessionStorage.setItem("bakoda_payment_method", info.brand ? `Kart (${info.brand.toUpperCase()})` : "Kart");
       sessionStorage.setItem("bakoda_payment_last4", info.last4 || "****");

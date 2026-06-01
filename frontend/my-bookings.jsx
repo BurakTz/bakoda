@@ -2,76 +2,54 @@
 
 const { useState, useRef, useMemo, useEffect } = React;
 
-const BOOKINGS = [
-  // Upcoming
-  { id: 1, status: "upcoming", code: "BKD-2026-48291",
-    name: "Çırağan Palace Suites", city: "İstanbul, Beşiktaş",
-    checkIn: new Date(2026, 4, 26), checkOut: new Date(2026, 4, 29),
-    guests: "2 yetişkin · 1 oda", total: 26052, ph: "ph-b1", note: "luxe · waterfront" },
-  { id: 2, status: "upcoming", code: "BKD-2026-47010",
-    name: "Villa Ananda Ubud", city: "Bali, Ubud",
-    checkIn: new Date(2026, 5, 18), checkOut: new Date(2026, 5, 22),
-    guests: "2 yetişkin · 1 villa", total: 18400, ph: "ph-b2", note: "retreat · jungle" },
-
-  // Past
-  { id: 3, status: "past", code: "BKD-2025-12044",
-    name: "Maison Lumière Marais", city: "Paris, 3. Bölge",
-    checkIn: new Date(2025, 8, 12), checkOut: new Date(2025, 8, 15),
-    guests: "2 yetişkin · 1 oda", total: 14200, ph: "ph-b3", note: "boutique · marais" },
-  { id: 4, status: "past", code: "BKD-2025-09887",
-    name: "The Cappadocia Cave Resort", city: "Nevşehir, Ürgüp",
-    checkIn: new Date(2025, 7, 3), checkOut: new Date(2025, 7, 6),
-    guests: "2 yetişkin · 1 oda", total: 18600, ph: "ph-b4", note: "stone · honey" },
-  { id: 5, status: "past", code: "BKD-2024-11220",
-    name: "Casa Solana Riviera", city: "Antalya, Kalkan",
-    checkIn: new Date(2024, 6, 22), checkOut: new Date(2024, 6, 26),
-    guests: "2 yetişkin · 1 oda", total: 23200, ph: "ph-b5", note: "terracotta · sea" },
-  { id: 6, status: "past", code: "BKD-2024-08114",
-    name: "Pera Loft House", city: "İstanbul, Beyoğlu",
-    checkIn: new Date(2024, 3, 18), checkOut: new Date(2024, 3, 20),
-    guests: "2 yetişkin · 1 oda", total: 6400, ph: "ph-b6", note: "atelier · roof view" },
-  { id: 7, status: "past", code: "BKD-2024-04007",
-    name: "Hammam Heritage Sultanahmet", city: "İstanbul, Sultanahmet",
-    checkIn: new Date(2024, 1, 10), checkOut: new Date(2024, 1, 12),
-    guests: "1 yetişkin · 1 oda", total: 5600, ph: "ph-b7", note: "stone · old city" },
-
-  // Cancelled
-  { id: 8, status: "cancelled", code: "BKD-2025-19770",
-    name: "Bosphorus Bay Hotel", city: "İstanbul, Tarabya",
-    checkIn: new Date(2025, 10, 5), checkOut: new Date(2025, 10, 8),
-    guests: "2 yetişkin · 1 oda", total: 19200, ph: "ph-b8", note: "modern · sea" },
-];
-
-// ── Placeholder colors ─────────────────────────────────────────────────
-const styles = document.createElement("style");
-styles.textContent = `
-  .ph-b1 { background: #4f7a73; } .ph-b2 { background: #5d8678; } .ph-b3 { background: #6a657e; }
-  .ph-b4 { background: #8a7b59; } .ph-b5 { background: #9b6a52; } .ph-b6 { background: #8b6a48; }
-  .ph-b7 { background: #6f4a3a; } .ph-b8 { background: #4a6b82; }
-`;
-document.head.appendChild(styles);
-
 // ── Helpers ────────────────────────────────────────────────────────────
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
+const parseIsoDate = (value) => {
+  const txt = String(value || "").trim();
+  if (!txt) return null;
+  const d = new Date(`${txt}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
 const fmtDateShort = (d) => {
   const m = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "—";
   return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()}`;
 };
 const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
 
+function mapBookingRow(b, status) {
+  const checkIn = parseIsoDate(b.check_in);
+  const checkOut = parseIsoDate(b.check_out);
+  const guestCount = Number(b.guests) || 1;
+  const roomCount = Number(b.rooms_count) || 1;
+  return {
+    id: b.id,
+    code: b.confirmation_code || `BKD-${b.id}`,
+    name: b.hotel_name || "Otel",
+    city: b.hotel_city || "",
+    hotel_id: b.hotel_id || null,
+    thumbnail: b.hotel_thumbnail || null,
+    checkIn,
+    checkOut,
+    guests: `${guestCount} yetişkin · ${roomCount} oda`,
+    total: b.total_price,
+    status,
+  };
+}
+
 // ── Booking card ───────────────────────────────────────────────────────
 function BookingCard({ b, onAction }) {
   const nights = daysBetween(b.checkIn, b.checkOut);
-  // Pretend "today" is the actual current date — the demo booking 1 is set for May 26 2026 (~1 week from now in the demo)
   const daysUntil = daysBetween(today(), b.checkIn);
   const urgent = daysUntil >= 0 && daysUntil < 3;
 
   return (
     <article className="booking fade-in">
       <div className="b-img">
-        <div className={`ph ${b.ph}`} />
-        <div className="ph-label">[ {b.note} ]</div>
+        {b.thumbnail
+          ? <img src={b.thumbnail} alt={b.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
+          : <div className="ph ph-r1" />}
         {b.status === "upcoming" && daysUntil >= 0 && (
           <span className={`countdown ${urgent ? "urgent":""}`}>
             <span className="dot" />
@@ -144,27 +122,55 @@ function App() {
   };
 
   const [bookings, setBookings] = useState([]);
-  const token = localStorage.getItem("bakoda_token");
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+
+  const parseList = async (r) => {
+    if (r.status === 401) return { unauthorized: true, data: [] };
+    return { unauthorized: false, data: r.ok ? await r.json() : [] };
+  };
+
+  const loadBookings = () => {
+    const token = localStorage.getItem("bakoda_token");
+    if (!token) {
+      setLoading(false);
+      setAuthError("Rezervasyonlarınızı görmek için giriş yapın.");
+      setBookings([]);
+      return;
+    }
+    setAuthError("");
+    setLoading(true);
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch("/api/users/me/bookings?status=upcoming", { headers }).then(parseList),
+      fetch("/api/users/me/bookings?status=past", { headers }).then(parseList),
+      fetch("/api/users/me/bookings?status=cancelled", { headers }).then(parseList),
+    ])
+      .then(([upcoming, past, cancelled]) => {
+        if (upcoming.unauthorized || past.unauthorized || cancelled.unauthorized) {
+          localStorage.removeItem("bakoda_token");
+          localStorage.removeItem("bakoda_user");
+          setAuthError("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.");
+          setBookings([]);
+          return;
+        }
+        const rows = [
+          ...(Array.isArray(upcoming.data) ? upcoming.data.map((b) => mapBookingRow(b, "upcoming")) : []),
+          ...(Array.isArray(past.data) ? past.data.map((b) => mapBookingRow(b, "past")) : []),
+          ...(Array.isArray(cancelled.data) ? cancelled.data.map((b) => mapBookingRow(b, "cancelled")) : []),
+        ];
+        setBookings(rows);
+      })
+      .catch(() => setBookings([]))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    if (!token) return;
-    fetch(`/api/users/me/bookings?status=${tab}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setBookings(data.map(b => ({
-          id: b.id, code: b.confirmation_code || `BKD-${b.id}`,
-          name: b.hotel_name || "Otel",
-          city: b.hotel_city || "",
-          hotel_id: b.hotel_id || null,
-          checkIn: b.check_in, checkOut: b.check_out,
-          guests: b.guests, rooms: b.rooms_count,
-          nights: Math.ceil((new Date(b.check_out) - new Date(b.check_in)) / 86400000),
-          total: b.total_price,
-          status: tab, ph: "ph-r1",
-        })));
-      })
-      .catch(() => {});
-  }, [tab, token]);
+    loadBookings();
+    const onVisible = () => { if (document.visibilityState === "visible") loadBookings(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   const counts = useMemo(() => ({
     upcoming:  bookings.filter(b => b.status === "upcoming").length,
@@ -175,8 +181,9 @@ function App() {
   const filtered = bookings.filter(b => b.status === tab);
 
   const onAction = async (kind, b) => {
+    const token = localStorage.getItem("bakoda_token");
     if (kind === "detay") {
-      window.location.href = "hotel-detail.html" + (b.hotel_id ? "?id=" + b.hotel_id : "");
+      window.location.href = `booking-detail.html?id=${b.id}`;
     }
     if (kind === "iptal") {
       try {
@@ -218,7 +225,17 @@ function App() {
           </button>
         </div>
 
-        {filtered.length > 0 ? (
+        {authError ? (
+          <div className="empty">
+            <div className="ico"><IconCalendar size={32} /></div>
+            <h2>{authError}</h2>
+            <a href="login.html" className="btn btn-cta">Giriş Yap <IconArrow size={14} /></a>
+          </div>
+        ) : loading ? (
+          <div className="empty">
+            <h2>Rezervasyonlar yükleniyor…</h2>
+          </div>
+        ) : filtered.length > 0 ? (
           <div className="booking-list">
             {filtered.map(b => <BookingCard key={b.id} b={b} onAction={onAction} />)}
           </div>

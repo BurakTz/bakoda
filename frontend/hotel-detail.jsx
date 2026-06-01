@@ -1,7 +1,10 @@
-// Hotel detail — Çırağan Palace Suites
+// Hotel detail — API-driven
 
 const { useState, useEffect, useRef } = React;
 const HOTEL_DETAIL_FALLBACK_TITLE = "Otel Detayı — bakoda";
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DISCOUNT_PCT = 8;
+const CLEANING_FEE = 500;
 const DETAIL_I18N = {
   tr: {
     common: {
@@ -66,6 +69,57 @@ const fmtDate = (d) => {
 const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
 const initials = (name) => name.split(/\s+/).map(s => s[0]).join("").slice(0,2).toUpperCase();
 
+const parsePositiveInt = (value, fallback) => {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+const parseIsoDate = (value) => {
+  const txt = String(value || "").trim();
+  if (!ISO_DATE_RE.test(txt)) return null;
+  const d = new Date(`${txt}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const toIsoDate = (d) => (
+  d instanceof Date && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : ""
+);
+
+function verdictFor(rating) {
+  if (rating >= 9.0) return "Mükemmel";
+  if (rating >= 8.5) return "Çok İyi";
+  if (rating >= 8.0) return "İyi";
+  if (rating >= 7.5) return "Memnun Edici";
+  return "Kabul Edilebilir";
+}
+
+function calcPricing(checkIn, checkOut, pricePerNight, rooms = 1) {
+  const nights = Math.max(1, Math.round((checkOut - checkIn) / 86400000));
+  const roomCount = Math.max(1, parsePositiveInt(rooms, 1));
+  const subtotal = Math.max(0, Number(pricePerNight || 0)) * nights * roomCount;
+  const discount = nights >= 3 ? Math.round(subtotal * DISCOUNT_PCT / 100) : 0;
+  const taxable = subtotal - discount + CLEANING_FEE;
+  const taxes = Math.round(taxable * 0.10);
+  const total = taxable + taxes;
+  return { nights, subtotal, discount, cleaning: CLEANING_FEE, taxes, total };
+}
+
+function readInitialStay() {
+  const qs = new URLSearchParams(window.location.search);
+  const t0 = today();
+  const fromUrlIn = parseIsoDate(qs.get("check_in") || sessionStorage.getItem("bakoda_checkin"));
+  const fromUrlOut = parseIsoDate(qs.get("check_out") || sessionStorage.getItem("bakoda_checkout"));
+  const checkIn = fromUrlIn && fromUrlIn >= t0 ? fromUrlIn : addDays(t0, 7);
+  let checkOut = fromUrlOut && fromUrlOut > checkIn ? fromUrlOut : addDays(checkIn, 3);
+  if (checkOut <= checkIn) checkOut = addDays(checkIn, 1);
+  const adults = parsePositiveInt(
+    qs.get("adults") || qs.get("guests") || sessionStorage.getItem("bakoda_adults"),
+    2
+  );
+  const rooms = parsePositiveInt(qs.get("rooms") || sessionStorage.getItem("bakoda_rooms"), 1);
+  return { checkIn, checkOut, adults, children: 0, rooms };
+}
+
 // ── Mini calendar ─────────────────────────────────────────────────────
 function MiniCal({ value, min, onPick }) {
   const [view, setView] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
@@ -79,9 +133,9 @@ function MiniCal({ value, min, onPick }) {
   return (
     <div className="cal" onClick={(e)=>e.stopPropagation()}>
       <div className="cal-head">
-        <button onClick={()=>setView(new Date(view.getFullYear(), view.getMonth()-1, 1))}><IconChevron size={14} style={{transform:"rotate(90deg)"}} /></button>
+        <button type="button" onClick={()=>setView(new Date(view.getFullYear(), view.getMonth()-1, 1))}><IconChevron size={14} style={{transform:"rotate(90deg)"}} /></button>
         <div className="title">{months[view.getMonth()]} {view.getFullYear()}</div>
-        <button onClick={()=>setView(new Date(view.getFullYear(), view.getMonth()+1, 1))}><IconChevron size={14} style={{transform:"rotate(-90deg)"}} /></button>
+        <button type="button" onClick={()=>setView(new Date(view.getFullYear(), view.getMonth()+1, 1))}><IconChevron size={14} style={{transform:"rotate(-90deg)"}} /></button>
       </div>
       <div className="cal-wk">{weekdays.map(w => <div key={w}>{w}</div>)}</div>
       <div className="cal-days">
@@ -90,7 +144,7 @@ function MiniCal({ value, min, onPick }) {
           const disabled = min && d < min;
           const sel = d.toDateString() === value.toDateString();
           return (
-            <button key={i} className={`cal-day ${sel?"sel":""}`} disabled={disabled} onClick={()=>onPick(d)}>
+            <button type="button" key={i} className={`cal-day ${sel?"sel":""}`} disabled={disabled} onClick={()=>onPick(d)}>
               {d.getDate()}
             </button>
           );
@@ -216,11 +270,13 @@ function OverviewPanel({ hotel, go }) {
   );
 }
 
-function RoomsPanel({ hotel }) {
+function RoomsPanel({ hotel, nights }) {
   return (
     <div className="panel" id="rooms">
       <h2>Süit & oda seçenekleri</h2>
-      <p className="muted" style={{ fontSize:14, marginBottom: 20 }}>Tüm fiyatlar 3 gece konaklama için, kahvaltı dahil.</p>
+      <p className="muted" style={{ fontSize:14, marginBottom: 20 }}>
+        {nights > 1 ? `${nights} gece` : "1 gece"} konaklama için gösterilen gecelik fiyatlar.
+      </p>
       <div className="rooms">
         {hotel.rooms.map(r => (
           <article className="room" key={r.name || r.id}>
@@ -244,11 +300,14 @@ function RoomsPanel({ hotel }) {
             <div className="side">
               <div className="price">{fmtTL(r.price)}</div>
               <div className="per">/ gece</div>
-              <button className="btn btn-cta" style={{ marginTop:8, height:38, padding:"0 16px", fontSize:13 }} onClick={() => {
-                const t0 = new Date(); t0.setHours(0,0,0,0);
-                const ci = new Date(t0); ci.setDate(ci.getDate()+7);
-                const co = new Date(t0); co.setDate(co.getDate()+10);
-                window.location.href = `booking.html?room_id=${r.id || ""}&hotel_id=${hotel.id}&check_in=${ci.toISOString().split("T")[0]}&check_out=${co.toISOString().split("T")[0]}&adults=2&rooms=1`;
+              <button
+                className="btn btn-cta"
+                style={{ marginTop:8, height:38, padding:"0 16px", fontSize:13 }}
+                disabled={hotel.availableRoomsCount === 0}
+                onClick={() => {
+                const ci = toIsoDate(hotel.stayCheckIn);
+                const co = toIsoDate(hotel.stayCheckOut);
+                window.location.href = `booking.html?room_id=${r.id || ""}&hotel_id=${hotel.id}&check_in=${ci}&check_out=${co}&adults=${hotel.stayAdults}&rooms=${hotel.stayRooms}`;
               }}>
                 Rezervasyon
               </button>
@@ -415,15 +474,11 @@ function ReviewsPanel({ hotel, onSubmitReview }) {
 }
 
 // ── Booking panel ─────────────────────────────────────────────────────
-function BookingPanel({ hotel, onBook }) {
-  const t0 = today();
-  const [checkIn, setCheckIn]   = useState(addDays(t0, 7));
-  const [checkOut, setCheckOut] = useState(addDays(t0, 10));
-  const [adults, setAdults]     = useState(2);
-  const [children, setChildren] = useState(0);
-  const [rooms, setRooms]       = useState(1);
-  const [pop, setPop]           = useState(null);
+function BookingPanel({ hotel, stay, onStayChange, stayLoading }) {
+  const { checkIn, checkOut, adults, children, rooms } = stay;
+  const [pop, setPop] = useState(null);
   const panel = useRef(null);
+  const t0 = today();
 
   useEffect(() => {
     const onDoc = (e) => { if (panel.current && !panel.current.contains(e.target)) setPop(null); };
@@ -431,53 +486,104 @@ function BookingPanel({ hotel, onBook }) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const nights = Math.max(1, Math.round((checkOut - checkIn) / 86400000));
-  const subtotal = hotel.pricePerNight * nights;
-  const discount = nights >= 3 ? Math.round(subtotal * 0.08) : 0;
-  const cleaning = 500;
-  const taxes = Math.round((subtotal - discount) * 0.10);
-  const total = subtotal - discount + cleaning + taxes;
+  const { nights, subtotal, discount, cleaning, taxes, total } = calcPricing(
+    checkIn,
+    checkOut,
+    hotel.pricePerNight,
+    rooms
+  );
+  const guestsTotal = adults + children;
+  const noRooms = hotel.availableRoomsCount === 0;
+  const bookDisabled = stayLoading || noRooms || !hotel.pricePerNight;
 
   return (
     <aside className="book" ref={panel}>
       <div className="from">Başlangıç</div>
-      <div className="price"><b>{fmtTL(hotel.pricePerNight)}</b><span className="per">/ gece</span></div>
-      <div className="promo"><IconTag size={14} /> 3+ gece için %8 indirim</div>
+      <div className="price">
+        <b>{fmtTL(hotel.pricePerNight)}</b><span className="per">/ gece</span>
+        {stayLoading && (
+          <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>güncelleniyor…</span>
+        )}
+      </div>
+      {hotel.availableRoomsCount != null && (
+        <div
+          style={{
+            fontSize: 13,
+            marginTop: 8,
+            padding: "8px 12px",
+            borderRadius: 8,
+            background: hotel.availableRoomsCount > 0 ? "rgba(46,204,113,.10)" : "rgba(231,76,60,.08)",
+            color: hotel.availableRoomsCount > 0 ? "#1e8e51" : "var(--error)",
+            fontWeight: 500,
+          }}
+        >
+          {hotel.availableRoomsCount > 0
+            ? `${hotel.availableRoomsCount} boş oda`
+            : "Seçilen tarihlerde müsait oda yok"}
+        </div>
+      )}
+      <div className="promo"><IconTag size={14} /> 3+ gece için %{DISCOUNT_PCT} indirim</div>
 
       <div className="field-row">
-        <div className="field" onClick={() => setPop(pop==="in" ? null : "in")}>
+        <div
+          className={`field ${pop === "in" ? "open" : ""}`}
+          role="button"
+          tabIndex={0}
+          aria-expanded={pop === "in"}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPop(pop === "in" ? null : "in"); } }}
+          onClick={() => setPop(pop === "in" ? null : "in")}
+        >
           <div className="lbl">Giriş</div>
           <div className="val">{fmtDate(checkIn)}</div>
           {pop === "in" && (
             <div className="pop">
               <MiniCal value={checkIn} min={t0} onPick={(d) => {
-                setCheckIn(d); if (d >= checkOut) setCheckOut(addDays(d, 1)); setPop("out");
+                const nextOut = d >= checkOut ? addDays(d, 1) : checkOut;
+                onStayChange({ checkIn: d, checkOut: nextOut });
+                setPop("out");
               }} />
             </div>
           )}
         </div>
-        <div className="field" onClick={() => setPop(pop==="out" ? null : "out")}>
+        <div
+          className={`field ${pop === "out" ? "open" : ""}`}
+          role="button"
+          tabIndex={0}
+          aria-expanded={pop === "out"}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPop(pop === "out" ? null : "out"); } }}
+          onClick={() => setPop(pop === "out" ? null : "out")}
+        >
           <div className="lbl">Çıkış</div>
           <div className="val">{fmtDate(checkOut)}</div>
           {pop === "out" && (
             <div className="pop">
-              <MiniCal value={checkOut} min={addDays(checkIn,1)} onPick={(d) => { setCheckOut(d); setPop(null); }} />
+              <MiniCal value={checkOut} min={addDays(checkIn,1)} onPick={(d) => {
+                onStayChange({ checkOut: d });
+                setPop(null);
+              }} />
             </div>
           )}
         </div>
       </div>
 
       <div className="field-row single">
-        <div className="field" onClick={() => setPop(pop==="guests" ? null : "guests")}>
+        <div
+          className={`field ${pop === "guests" ? "open" : ""}`}
+          role="button"
+          tabIndex={0}
+          aria-expanded={pop === "guests"}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPop(pop === "guests" ? null : "guests"); } }}
+          onClick={() => setPop(pop === "guests" ? null : "guests")}
+        >
           <div className="lbl">Misafir</div>
-          <div className="val">{adults + children} kişi · {rooms} oda</div>
+          <div className="val">{guestsTotal} kişi · {rooms} oda</div>
           {pop === "guests" && (
             <div className="pop" onClick={(e)=>e.stopPropagation()}>
-              <Step label="Yetişkin"  sub="13+ yaş"  val={adults}   min={1} onChange={setAdults} />
-              <Step label="Çocuk"     sub="0–12 yaş" val={children} min={0} onChange={setChildren} />
-              <Step label="Oda"       sub=""         val={rooms}    min={1} max={6} onChange={setRooms} />
+              <Step label="Yetişkin"  sub="13+ yaş"  val={adults}   min={1} onChange={(v) => onStayChange({ adults: v })} />
+              <Step label="Çocuk"     sub="0–12 yaş" val={children} min={0} onChange={(v) => onStayChange({ children: v })} />
+              <Step label="Oda"       sub=""         val={rooms}    min={1} max={6} onChange={(v) => onStayChange({ rooms: v })} />
               <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
-                <button className="btn btn-ghost" style={{ height:34, padding:"0 14px", fontSize:13 }} onClick={()=>setPop(null)}>Tamam</button>
+                <button type="button" className="btn btn-ghost" style={{ height:34, padding:"0 14px", fontSize:13 }} onClick={()=>setPop(null)}>Tamam</button>
               </div>
             </div>
           )}
@@ -491,7 +597,7 @@ function BookingPanel({ hotel, onBook }) {
         </div>
         {discount > 0 && (
           <div className="row discount">
-            <span className="label">Kampanya (-%8)</span>
+            <span className="label">Kampanya (-%{DISCOUNT_PCT})</span>
             <span>−{fmtTL(discount)}</span>
           </div>
         )}
@@ -510,10 +616,13 @@ function BookingPanel({ hotel, onBook }) {
         </div>
       </div>
 
-      <button className="btn btn-cta cta" onClick={() => {
+      <button
+        className="btn btn-cta cta"
+        disabled={bookDisabled}
+        onClick={() => {
         const roomId = hotel.rooms[0]?.id || "";
-        const ci = checkIn.toISOString().split("T")[0];
-        const co = checkOut.toISOString().split("T")[0];
+        const ci = toIsoDate(checkIn);
+        const co = toIsoDate(checkOut);
         sessionStorage.setItem("bakoda_hotel_id", String(hotel.id));
         sessionStorage.setItem("bakoda_room_id", String(roomId));
         sessionStorage.setItem("bakoda_checkin", ci);
@@ -522,7 +631,7 @@ function BookingPanel({ hotel, onBook }) {
         sessionStorage.setItem("bakoda_rooms", String(rooms));
         window.location.href = `booking.html?room_id=${roomId}&hotel_id=${hotel.id}&check_in=${ci}&check_out=${co}&adults=${adults}&rooms=${rooms}`;
       }}>
-        Rezervasyonu Tamamla <IconArrow size={16} />
+        {noRooms ? "Müsait oda yok" : "Rezervasyonu Tamamla"} <IconArrow size={16} />
       </button>
 
       <div className="perks">
@@ -542,9 +651,9 @@ function Step({ label, sub, val, min=0, max=12, onChange }) {
         {sub && <div style={{ color:"var(--muted)", fontSize:12 }}>{sub}</div>}
       </div>
       <div className="step">
-        <button onClick={() => onChange(Math.max(min, val-1))} disabled={val <= min}>−</button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onChange(Math.max(min, val - 1)); }} disabled={val <= min}>−</button>
         <span className="count">{val}</span>
-        <button onClick={() => onChange(Math.min(max, val+1))} disabled={val >= max}>+</button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onChange(Math.min(max, val + 1)); }} disabled={val >= max}>+</button>
       </div>
     </div>
   );
@@ -562,18 +671,32 @@ function mapReview(rv) {
   };
 }
 
-function transformHotel(data) {
-  const r = data.rating || 0;
+function resolveMinPrice(data) {
+  if (typeof data.min_price === "number" && data.min_price > 0) return data.min_price;
+  const roomPrices = (data.rooms || [])
+    .map((rm) => Number(rm.price_per_night))
+    .filter((p) => Number.isFinite(p) && p > 0);
+  if (roomPrices.length) return Math.min(...roomPrices);
+  return Number(data.price_per_night) || 0;
+}
+
+function transformHotel(data, stay = null) {
+  const r = Number(data.rating) || 0;
   const reviewsCount = data.reviews_count || 0;
+  const minPrice = resolveMinPrice(data);
   return {
     id: data.id,
     name: data.name,
     stars: data.stars,
     district: `${data.city}${data.district ? ", " + data.district : ""}`,
     rating: parseFloat(Number(r).toFixed(1)),
-    verdict: reviewsCount === 0 ? "Henüz puan yok" : r >= 9.0 ? "Mükemmel" : r >= 8.0 ? "Çok İyi" : "İyi",
+    verdict: reviewsCount === 0 ? "Henüz puan yok" : verdictFor(r),
     reviews: reviewsCount,
-    pricePerNight: data.price_per_night,
+    pricePerNight: minPrice,
+    stayCheckIn: stay?.checkIn || null,
+    stayCheckOut: stay?.checkOut || null,
+    stayAdults: stay?.adults ?? 2,
+    stayRooms: stay?.rooms ?? 1,
     description: data.description || "",
     meta: [
       { lbl: "Konaklama Tipi", val: `${data.stars} Yıldız` },
@@ -595,6 +718,8 @@ function transformHotel(data) {
     reviewList: [...(data.reviews || [])]
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
       .map(mapReview),
+    availableRoomsCount:
+      typeof data.available_rooms_count === "number" ? data.available_rooms_count : null,
   };
 }
 
@@ -605,27 +730,53 @@ function App() {
   const [status, setStatus] = useState("loading"); // loading | ready | error
   const [loadError, setLoadError] = useState("");
   const [retryTick, setRetryTick] = useState(0);
+  const [stay, setStay] = useState(readInitialStay);
+  const [stayLoading, setStayLoading] = useState(false);
   const [tab, setTab]     = useState("overview");
   const [fav, setFav]     = useState(false);
   const [lightIdx, setLightIdx] = useState(null);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
+  const hadHotelRef = useRef(false);
 
   const qs = new URLSearchParams(window.location.search);
   const rawHotelId = (qs.get("id") || qs.get("hotel_id") || sessionStorage.getItem("bakoda_hotel_id") || "").trim();
   const isHotelIdValid = /^[1-9]\d*$/.test(rawHotelId);
   const hotelId = isHotelIdValid ? Number(rawHotelId) : NaN;
 
-  const fetchHotelDetail = async (targetHotelId, signal) => {
+  const stayKey = `${toIsoDate(stay.checkIn)}|${toIsoDate(stay.checkOut)}|${stay.adults + stay.children}|${stay.rooms}`;
+
+  const onStayChange = (patch) => {
+    setStay((prev) => {
+      const next = { ...prev, ...patch };
+      const t0 = today();
+      if (next.checkIn instanceof Date) {
+        const d = new Date(next.checkIn);
+        d.setHours(0, 0, 0, 0);
+        next.checkIn = d < t0 ? t0 : d;
+      }
+      if (next.checkOut instanceof Date) {
+        const d = new Date(next.checkOut);
+        d.setHours(0, 0, 0, 0);
+        next.checkOut = d;
+      }
+      if (next.checkOut <= next.checkIn) {
+        next.checkOut = addDays(next.checkIn, 1);
+      }
+      return next;
+    });
+  };
+
+  const fetchHotelDetail = async (targetHotelId, stayParams, signal) => {
     const params = new URLSearchParams();
-    const ci = qs.get("check_in") || sessionStorage.getItem("bakoda_checkin");
-    const co = qs.get("check_out") || sessionStorage.getItem("bakoda_checkout");
-    const adults = qs.get("adults") || qs.get("guests") || sessionStorage.getItem("bakoda_adults");
+    const ci = toIsoDate(stayParams.checkIn);
+    const co = toIsoDate(stayParams.checkOut);
+    const guests = Math.max(1, (stayParams.adults || 0) + (stayParams.children || 0));
     if (ci) params.set("check_in", ci);
     if (co) params.set("check_out", co);
-    if (adults) params.set("guests", adults);
+    params.set("guests", String(guests));
     const query = params.toString();
-    const r = await fetch(`/api/hotels/${targetHotelId}${query ? `?${query}` : ""}`, { signal });
+    const r = await fetch(`/api/hotels/${targetHotelId}?${query}`, { signal });
     let payload = null;
     try { payload = await r.json(); } catch {}
     if (!r.ok) {
@@ -662,28 +813,69 @@ function App() {
       };
     }
 
-    setStatus("loading");
-    setLoadError("");
-    setHotel(null);
+    if (!hadHotelRef.current) {
+      setStatus("loading");
+      setLoadError("");
+      setHotel(null);
+    } else {
+      setStayLoading(true);
+    }
 
-    fetchHotelDetail(hotelId, controller.signal)
+    fetchHotelDetail(hotelId, stay, controller.signal)
       .then((data) => {
         if (!isMounted) return;
         if (!data || !data.id) throw new Error("Beklenmeyen otel verisi alındı.");
         sessionStorage.setItem("bakoda_hotel_id", String(data.id));
-        setHotel(transformHotel(data));
+        sessionStorage.setItem("bakoda_checkin", toIsoDate(stay.checkIn));
+        sessionStorage.setItem("bakoda_checkout", toIsoDate(stay.checkOut));
+        sessionStorage.setItem("bakoda_adults", String(stay.adults));
+        sessionStorage.setItem("bakoda_rooms", String(stay.rooms));
+        hadHotelRef.current = true;
+        setHotel(transformHotel(data, stay));
         setStatus("ready");
+        setStayLoading(false);
       })
       .catch((err) => {
         if (controller.signal.aborted || !isMounted) return;
-        fail(err?.message || "Otel bilgileri alınırken bir hata oluştu.");
+        setStayLoading(false);
+        if (!hadHotelRef.current) {
+          fail(err?.message || "Otel bilgileri alınırken bir hata oluştu.");
+        }
       });
 
     return () => {
       isMounted = false;
       controller.abort();
     };
-  }, [hotelId, isHotelIdValid, retryTick]);
+  }, [hotelId, isHotelIdValid, retryTick, stayKey]);
+
+  useEffect(() => {
+    hadHotelRef.current = false;
+  }, [hotelId, retryTick]);
+
+  useEffect(() => {
+    if (!isHotelIdValid) return;
+    const next = new URLSearchParams(window.location.search);
+    next.set("id", String(hotelId));
+    const ci = toIsoDate(stay.checkIn);
+    const co = toIsoDate(stay.checkOut);
+    const guests = Math.max(1, stay.adults + stay.children);
+    if (ci) next.set("check_in", ci);
+    if (co) next.set("check_out", co);
+    next.set("guests", String(guests));
+    next.set("adults", String(stay.adults));
+    next.set("rooms", String(stay.rooms));
+    const nextQuery = next.toString();
+    const currentQuery = window.location.search.replace(/^\?/, "");
+    if (nextQuery !== currentQuery) {
+      const url = "hotel-detail.html" + (nextQuery ? `?${nextQuery}` : "");
+      window.history.replaceState({}, "", url);
+    }
+    sessionStorage.setItem("bakoda_checkin", ci);
+    sessionStorage.setItem("bakoda_checkout", co);
+    sessionStorage.setItem("bakoda_adults", String(stay.adults));
+    sessionStorage.setItem("bakoda_rooms", String(stay.rooms));
+  }, [stayKey, hotelId, isHotelIdValid, stay.adults, stay.children, stay.rooms]);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -711,8 +903,8 @@ function App() {
       if (!res.ok) {
         return { ok:false, error: payload?.detail || "Yorum gönderilemedi." };
       }
-      const refreshed = await fetchHotelDetail(hotel.id);
-      setHotel(transformHotel(refreshed));
+      const refreshed = await fetchHotelDetail(hotel.id, stay);
+      setHotel(transformHotel(refreshed, stay));
       flash("Yorumunuz kaydedildi.");
       return { ok:true };
     } catch (err) {
@@ -779,13 +971,20 @@ function App() {
                   </div>
                   <h1 className="h-name">{hotel.name}</h1>
                   <div className="h-loc"><IconMapPin size={14} /> {hotel.district} · <a href={`https://maps.google.com/?q=${encodeURIComponent(`${hotel.name} ${hotel.district}`)}`} target="_blank" rel="noreferrer">{t("common.showOnMap")}</a></div>
+                  {hotel.availableRoomsCount != null && (
+                    <div style={{ marginTop: 8, fontSize: 14, color: hotel.availableRoomsCount > 0 ? "#1e8e51" : "var(--error)", fontWeight: 500 }}>
+                      {hotel.availableRoomsCount > 0
+                        ? `${hotel.availableRoomsCount} boş oda (seçilen tarihler)`
+                        : "Seçilen tarihlerde müsait oda yok"}
+                    </div>
+                  )}
                 </div>
                 <div className="h-score">
                   <div className="meta">
                     <div className="verdict">{hotel.verdict}</div>
                     <div className="reviews"><a href="#reviews" onClick={(e)=>{e.preventDefault(); setTab("reviews");}}>{new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(hotel.reviews)} {t("common.reviews")}</a></div>
                   </div>
-                  <div className="badge">{hotel.rating.toFixed(1)}/10</div>
+                  <div className="badge">{hotel.reviews > 0 ? `${hotel.rating.toFixed(1)}/10` : "—"}</div>
                 </div>
               </header>
 
@@ -798,12 +997,12 @@ function App() {
               </div>
 
               {tab === "overview"  && <OverviewPanel hotel={hotel} go={setTab} />}
-              {tab === "rooms"     && <RoomsPanel hotel={hotel} />}
+              {tab === "rooms"     && <RoomsPanel hotel={hotel} nights={calcPricing(stay.checkIn, stay.checkOut, hotel.pricePerNight, stay.rooms).nights} />}
               {tab === "amenities" && <AmenitiesPanel hotel={hotel} />}
               {tab === "reviews"   && <ReviewsPanel hotel={hotel} onSubmitReview={submitReview} />}
             </main>
 
-            <BookingPanel hotel={hotel} onBook={(total) => flash(`Rezervasyon başlatıldı · ${fmtTL(total)}`)} />
+            <BookingPanel hotel={hotel} stay={stay} onStayChange={onStayChange} stayLoading={stayLoading} />
           </div>
         </div>
 

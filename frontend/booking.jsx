@@ -673,7 +673,7 @@ function App() {
         body: JSON.stringify({
           room_id: ctx.roomId,
           guest_name: guestName,
-          guest_email: form.email,
+          guest_email: String(form.email || "").trim(),
           phone: form.phone,
           check_in: toIsoDate(ctx.checkIn),
           check_out: toIsoDate(ctx.checkOut),
@@ -686,7 +686,17 @@ function App() {
       });
       let payload = null;
       try { payload = await res.json(); } catch {}
-      if (!res.ok) throw new Error(payload?.detail || "Rezervasyon oluşturulamadı.");
+      if (!res.ok) {
+        const detail = typeof payload?.detail === "string" ? payload.detail : "";
+        if (res.status === 409) {
+          throw new Error(
+            detail.includes("already booked") || detail.includes("not available")
+              ? "Seçtiğiniz oda bu tarihlerde dolu. Lütfen başka tarih veya oda seçin."
+              : detail || "Seçilen tarihlerde yeterli müsait oda yok."
+          );
+        }
+        throw new Error(detail || "Rezervasyon oluşturulamadı.");
+      }
 
       sessionStorage.setItem("bakoda_booking_id", String(payload.id));
       sessionStorage.setItem("bakoda_booking_code", payload.confirmation_code || "");

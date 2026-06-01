@@ -26,6 +26,8 @@ const SEARCH_I18N = {
       perNight: "/ gece",
       total: "toplam",
       viewDetails: "Detayları Gör",
+      roomsAvailable: "boş oda",
+      noRooms: "Müsait oda yok",
     },
     page: {
       home: "Anasayfa",
@@ -75,6 +77,8 @@ const SEARCH_I18N = {
       perNight: "/ night",
       total: "total",
       viewDetails: "View Details",
+      roomsAvailable: "rooms available",
+      noRooms: "No rooms available",
     },
     page: {
       home: "Home",
@@ -102,23 +106,13 @@ const SEARCH_I18N = {
   },
 };
 
-// ── Data ──────────────────────────────────────────────────────────────
-const RESULTS = [
-  { id: 1, name: "Çırağan Palace Suites",       type: "5 Yıldız · Boutique",  district: "Beşiktaş",      stars: 5, rating: 9.4, reviews: 1284, price: 8400, ph: "ph-r1", featured: true,  amen: ["pool","spa","breakfast","wifi"], perks: ["Ücretsiz İptal","Kahvaltı Dahil"], cancel: true,  breakfast: true,  note: "luxe · waterfront" },
-  { id: 2, name: "Pera Loft House",             type: "Butik Otel",            district: "Beyoğlu, Galata",stars: 4, rating: 8.7, reviews: 892,  price: 3200, ph: "ph-r2", featured: false, amen: ["wifi","breakfast"], perks: ["Ücretsiz İptal"], cancel: true,  breakfast: true,  note: "atelier · roof view" },
-  { id: 3, name: "Bosphorus Bay Hotel",         type: "5 Yıldız",              district: "Sarıyer, Tarabya",stars: 5, rating: 9.1, reviews: 642,  price: 6400, ph: "ph-r3", featured: false, amen: ["pool","spa","breakfast","wifi"], perks: ["Kahvaltı Dahil","Spa"], cancel: false, breakfast: true,  note: "modern · sea" },
-  { id: 4, name: "Hammam Heritage Sultanahmet", type: "Heritage · 4 Yıldız",   district: "Fatih, Sultanahmet",stars: 4, rating: 8.9, reviews: 1521, price: 2800, ph: "ph-r4", featured: false, amen: ["spa","breakfast","wifi"], perks: ["Ücretsiz İptal","Spa"], cancel: true,  breakfast: true,  note: "stone · old city" },
-  { id: 5, name: "Karaköy Riverstone Hotel",    type: "Butik · 4 Yıldız",      district: "Karaköy",        stars: 4, rating: 8.5, reviews: 487,  price: 3650, ph: "ph-r5", featured: false, amen: ["wifi","breakfast"], perks: ["Kahvaltı Dahil"],  cancel: false, breakfast: true,  note: "stone · port" },
-  { id: 6, name: "Maslak Tower Residences",     type: "5 Yıldız · İş Oteli",   district: "Sarıyer, Maslak",stars: 5, rating: 8.8, reviews: 318,  price: 4900, ph: "ph-r6", featured: false, amen: ["pool","wifi","breakfast"], perks: ["Havuz","Ücretsiz İptal"], cancel: true, breakfast: true,  note: "high-rise · skyline" },
-  { id: 7, name: "Kadıköy Garden Inn",          type: "3 Yıldız",              district: "Kadıköy, Moda",  stars: 3, rating: 7.9, reviews: 256,  price: 1450, ph: "ph-r7", featured: false, amen: ["wifi"], perks: ["Bütçe Dostu"], cancel: false, breakfast: false, note: "garden · quiet" },
-  { id: 8, name: "Suadiye Marina Residence",    type: "Butik · 4 Yıldız",      district: "Kadıköy, Suadiye",stars:4, rating: 8.3, reviews: 412,  price: 2950, ph: "ph-r8", featured: false, amen: ["pool","wifi","breakfast"], perks: ["Havuz","Kahvaltı Dahil"], cancel: false, breakfast: true, note: "marina · sea" },
-];
-
+// ── Helpers ───────────────────────────────────────────────────────────
 const AMENITY_ICONS = { wifi: IconWifi, pool: IconPool, spa: IconSpa, breakfast: IconBreakfast };
 const AMENITY_LABELS = { wifi: "WiFi", pool: "Havuz", spa: "Spa", breakfast: "Kahvaltı" };
 
 // ── Verdict from rating ───────────────────────────────────────────────
-function verdictFor(r) {
+function verdictFor(r, reviewsCount) {
+  if (!reviewsCount) return null;
   if (r >= 9.0) return "Mükemmel";
   if (r >= 8.5) return "Çok İyi";
   if (r >= 8.0) return "İyi";
@@ -308,7 +302,7 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
               checked={filters.amenities.includes(k)}
               onChange={() => toggle("amenities", k)}
               label={l}
-              count={RESULTS.filter(r => k === "cancel" ? r.cancel : r.amen.includes(k)).length}
+              count={results.filter(r => r.amen && (k === "cancel" ? r.cancel : r.amen.includes(k))).length}
             />
           ))}
         </div>
@@ -343,8 +337,12 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
 // ── Result card ───────────────────────────────────────────────────────
 function ResultCard({ r, fav, onFav, onView }) {
   const { t, lang } = useI18n(SEARCH_I18N);
-  const v = verdictFor(r.rating);
-  const mapQuery = encodeURIComponent(`İstanbul ${r.district}`);
+  const reviewCount = Number(r.reviews) || 0;
+  const v = verdictFor(r.rating, reviewCount);
+  const mapQuery = encodeURIComponent(`${r.city || ""} ${r.district || ""}`.trim());
+  const locLabel = r.district && r.city && r.district !== r.city
+    ? `${r.city}, ${r.district}`
+    : (r.city || r.district || "");
   return (
     <article className="result-card fade-in" onClick={onView}>
       <div className="rc-img">
@@ -367,16 +365,16 @@ function ResultCard({ r, fav, onFav, onView }) {
           </div>
           <h3 className="rc-name">{r.name}</h3>
           <div className="rc-loc">
-            <IconMapPin size={13} /> İstanbul, {r.district} · <a href={`https://maps.google.com/?q=${mapQuery}`} target="_blank" rel="noreferrer">{t("card.showMap")}</a>
+            <IconMapPin size={13} /> {locLabel} · <a href={`https://maps.google.com/?q=${mapQuery}`} target="_blank" rel="noreferrer">{t("card.showMap")}</a>
           </div>
           <div className="rc-amen">
-            {r.amen.map(a => {
+            {(r.amen || []).map(a => {
               const I = AMENITY_ICONS[a];
               return <span key={a}><I size={13} /> {AMENITY_LABELS[a]}</span>;
             })}
           </div>
           <div className="rc-perks">
-            {r.perks.map((p, i) => (
+            {(r.perks || []).map((p, i) => (
               <span key={p} className={`rc-perk ${i === 1 ? "warn" : ""}`}>✓ {p}</span>
             ))}
           </div>
@@ -385,16 +383,30 @@ function ResultCard({ r, fav, onFav, onView }) {
         <div className="rc-side">
           <div className="rc-score">
             <div className="meta">
-              <div className="verdict">{v}</div>
-              <div className="reviews">{new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(r.reviews)} {t("card.reviews")}</div>
+              <div className="verdict">{v || (lang === "en" ? "No reviews yet" : "Henüz yorum yok")}</div>
+              <div className="reviews">{new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(reviewCount)} {t("card.reviews")}</div>
             </div>
-            <div className={`badge ${r.rating >= 9.0 ? "gold" : ""}`}>{r.rating.toFixed(1)}/10</div>
+            <div className={`badge ${reviewCount > 0 && r.rating >= 9.0 ? "gold" : ""}`}>
+              {reviewCount > 0 ? `${r.rating.toFixed(1)}/10` : "—"}
+            </div>
           </div>
           <div className="rc-price">
             <div className="from">{t("card.from")}</div>
             <b>{fmtTL(r.price)}</b>
             <span className="per">{t("card.perNight")}</span>
             <div className="total">3 {lang === "en" ? "nights" : "gece"} · {fmtTL(r.price * 3)} {t("card.total")}</div>
+            {r.availableRooms != null && (
+              <div style={{
+                fontSize: 12,
+                marginTop: 6,
+                fontWeight: 500,
+                color: r.availableRooms > 0 ? "#1e8e51" : "var(--error)",
+              }}>
+                {r.availableRooms > 0
+                  ? `${r.availableRooms} ${t("card.roomsAvailable")}`
+                  : t("card.noRooms")}
+              </div>
+            )}
             <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); onView(); }}>
               {t("card.viewDetails")} <IconArrow size={14} />
             </button>
@@ -486,9 +498,10 @@ function App() {
       .then((d) => {
         const hotels = Array.isArray(d?.hotels) ? d.hotels : [];
         setResults(hotels.map(h => ({
-          id: h.id, name: h.name, type: `${h.stars} Yıldız`, district: h.district || h.city,
-          stars: h.stars, rating: h.rating || 0, reviews: h.reviews_count,
+          id: h.id, name: h.name, city: h.city, type: `${h.stars} Yıldız`, district: h.district || "",
+          stars: h.stars, rating: Number(h.rating) || 0, reviews: Number(h.reviews_count) || 0,
           price: h.price_per_night, thumbnail: h.thumbnail, featured: false,
+          availableRooms: typeof h.available_rooms_count === "number" ? h.available_rooms_count : null,
           amen: [], perks: [], cancel: false, breakfast: false, note: "",
         })));
         setTotalInCity(Number.isFinite(d?.total) ? d.total : hotels.length);
@@ -592,7 +605,14 @@ function App() {
                 {!isLoading && !fetchError && filtered.map(r => (
                   <ResultCard key={r.id} r={r}
                     fav={favs.has(r.id)} onFav={() => toggleFav(r.id)}
-                    onView={() => { window.location.href = "hotel-detail.html?id=" + r.id; }} />
+                    onView={() => {
+                      const p = new URLSearchParams({ id: String(r.id) });
+                      if (checkIn) p.set("check_in", checkIn);
+                      if (checkOut) p.set("check_out", checkOut);
+                      p.set("guests", String(Math.max(1, adults)));
+                      p.set("rooms", String(Math.max(1, rooms)));
+                      window.location.href = "hotel-detail.html?" + p.toString();
+                    }} />
                 ))}
                 {isLoading && (
                   <div style={{ padding:60, textAlign:"center", color:"var(--muted)", background:"#fff", borderRadius:16, border:"1px solid var(--line)" }}>
