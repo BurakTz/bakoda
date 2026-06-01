@@ -2,15 +2,24 @@ import enum
 from datetime import date, datetime
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, Enum, Float, ForeignKey,
-    Integer, String, Text, UniqueConstraint, func,
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
-
 # ── Enums ────────────────────────────────────────────────────────────────────
+
 
 class RoomType(str, enum.Enum):
     single = "single"
@@ -29,6 +38,7 @@ class BookingStatus(str, enum.Enum):
 
 
 # ── User ─────────────────────────────────────────────────────────────────────
+
 
 class User(Base):
     __tablename__ = "users"
@@ -58,6 +68,7 @@ class User(Base):
 
 # ── Hotel ────────────────────────────────────────────────────────────────────
 
+
 class Hotel(Base):
     __tablename__ = "hotels"
 
@@ -85,7 +96,9 @@ class HotelAmenity(Base):
     __tablename__ = "hotel_amenities"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    hotel_id: Mapped[int] = mapped_column(Integer, ForeignKey("hotels.id"), nullable=False, index=True)
+    hotel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("hotels.id"), nullable=False, index=True
+    )
     icon: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
     subtitle: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -97,7 +110,9 @@ class HotelReview(Base):
     __tablename__ = "hotel_reviews"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    hotel_id: Mapped[int] = mapped_column(Integer, ForeignKey("hotels.id"), nullable=False, index=True)
+    hotel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("hotels.id"), nullable=False, index=True
+    )
     reviewer_name: Mapped[str] = mapped_column(String(100), nullable=False)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     rating: Mapped[float] = mapped_column(Float, nullable=False)
@@ -110,11 +125,14 @@ class HotelReview(Base):
 
 # ── Room ─────────────────────────────────────────────────────────────────────
 
+
 class Room(Base):
     __tablename__ = "rooms"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    hotel_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("hotels.id"), nullable=True, index=True)
+    hotel_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("hotels.id"), nullable=True, index=True
+    )
     room_number: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     type: Mapped[RoomType] = mapped_column(Enum(RoomType), nullable=False)
@@ -134,12 +152,17 @@ class Room(Base):
 
 # ── Booking ───────────────────────────────────────────────────────────────────
 
+
 class Booking(Base):
     __tablename__ = "bookings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    room_id: Mapped[int] = mapped_column(Integer, ForeignKey("rooms.id"), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    room_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("rooms.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
     guest_name: Mapped[str] = mapped_column(String(100), nullable=False)
     guest_email: Mapped[str] = mapped_column(String(200), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
@@ -164,13 +187,18 @@ class Booking(Base):
 
 # ── Favorite ─────────────────────────────────────────────────────────────────
 
+
 class Favorite(Base):
     __tablename__ = "favorites"
     __table_args__ = (UniqueConstraint("user_id", "hotel_id", name="uq_user_hotel_favorite"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    hotel_id: Mapped[int] = mapped_column(Integer, ForeignKey("hotels.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    hotel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("hotels.id"), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship("User", back_populates="favorites")
@@ -179,11 +207,14 @@ class Favorite(Base):
 
 # ── Saved payment methods ─────────────────────────────────────────────────────
 
+
 class SavedCard(Base):
     __tablename__ = "saved_cards"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     brand: Mapped[str] = mapped_column(String(20), nullable=False)
     last4: Mapped[str] = mapped_column(String(4), nullable=False)
     holder_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -201,7 +232,9 @@ class BillingAddress(Base):
     __table_args__ = (UniqueConstraint("user_id", name="uq_user_billing_address"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     line: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     district: Mapped[str] = mapped_column(String(100), nullable=False, default="")
@@ -216,6 +249,7 @@ class BillingAddress(Base):
 
 
 # ── PasswordResetCode ────────────────────────────────────────────────────────
+
 
 class PasswordResetCode(Base):
     __tablename__ = "password_reset_codes"

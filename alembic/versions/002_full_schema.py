@@ -5,9 +5,11 @@ Revises: 001
 Create Date: 2026-05-20
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "002"
@@ -105,7 +107,9 @@ def upgrade() -> None:
     op.add_column("bookings", sa.Column("user_id", sa.Integer(), nullable=True))
     op.add_column("bookings", sa.Column("phone", sa.String(length=30), nullable=True))
     op.add_column("bookings", sa.Column("guests", sa.Integer(), nullable=False, server_default="1"))
-    op.add_column("bookings", sa.Column("rooms_count", sa.Integer(), nullable=False, server_default="1"))
+    op.add_column(
+        "bookings", sa.Column("rooms_count", sa.Integer(), nullable=False, server_default="1")
+    )
     op.add_column("bookings", sa.Column("preferences", sa.Text(), nullable=True))
     op.add_column("bookings", sa.Column("arrival_time", sa.String(length=20), nullable=True))
     op.add_column("bookings", sa.Column("trip_type", sa.String(length=50), nullable=True))
@@ -159,8 +163,16 @@ def downgrade() -> None:
     op.drop_index("ix_bookings_check_in", table_name="bookings")
     op.drop_index("ix_bookings_user_id", table_name="bookings")
     op.drop_constraint("fk_bookings_user_id", "bookings", type_="foreignkey")
-    for col in ["confirmation_code", "trip_type", "arrival_time", "preferences",
-                "rooms_count", "guests", "phone", "user_id"]:
+    for col in [
+        "confirmation_code",
+        "trip_type",
+        "arrival_time",
+        "preferences",
+        "rooms_count",
+        "guests",
+        "phone",
+        "user_id",
+    ]:
         op.drop_column("bookings", col)
 
     op.drop_index("ix_rooms_hotel_id", table_name="rooms")

@@ -4,8 +4,8 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from src.models import BookingStatus, RoomStatus, RoomType
 
-
 # ── Room schemas ─────────────────────────────────────────────────────────────
+
 
 class RoomOut(BaseModel):
     id: int
@@ -24,6 +24,7 @@ class RoomOut(BaseModel):
 
 
 # ── Hotel schemas ─────────────────────────────────────────────────────────────
+
 
 class AmenityOut(BaseModel):
     id: int
@@ -100,6 +101,7 @@ class HotelDetailOut(HotelOut):
 
 
 # ── Auth schemas ──────────────────────────────────────────────────────────────
+
 
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -194,6 +196,7 @@ class TokenOut(BaseModel):
 
 # ── Booking schemas ───────────────────────────────────────────────────────────
 
+
 class BookingCreate(BaseModel):
     room_id: int
     guest_name: str
@@ -252,6 +255,7 @@ class BookingListOut(BookingOut):
 
 # ── Favorite schemas ──────────────────────────────────────────────────────────
 
+
 class FavoriteOut(BaseModel):
     id: int
     hotel: HotelOut
@@ -261,6 +265,7 @@ class FavoriteOut(BaseModel):
 
 
 # ── Payment method schemas ────────────────────────────────────────────────────
+
 
 class SavedCardOut(BaseModel):
     id: int
@@ -346,6 +351,7 @@ class BillingAddressUpdate(BaseModel):
 
 
 # ── Health schema ─────────────────────────────────────────────────────────────
+
 
 class HealthOut(BaseModel):
     status: str

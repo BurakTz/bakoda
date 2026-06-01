@@ -5,7 +5,16 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
-from src.models import Booking, BookingStatus, Hotel, HotelAmenity, HotelReview, Room, RoomStatus, RoomType
+from src.models import (
+    Booking,
+    BookingStatus,
+    Hotel,
+    HotelAmenity,
+    HotelReview,
+    Room,
+    RoomStatus,
+    RoomType,
+)
 
 
 @pytest.fixture()
@@ -23,13 +32,21 @@ async def istanbul_hotel(session_factory) -> Hotel:
         session.add(hotel)
         await session.flush()
 
-        session.add_all([
-            HotelAmenity(hotel_id=hotel.id, icon="wifi", title="Wi-Fi"),
-            HotelAmenity(hotel_id=hotel.id, icon="pool", title="Havuz"),
-            HotelReview(hotel_id=hotel.id, reviewer_name="Ali", rating=9.8, text="Harika"),
-            Room(hotel_id=hotel.id, room_number=f"H{uuid.uuid4().hex[:6].upper()}", type=RoomType.double,
-                 capacity=2, price_per_night=3000.0, status=RoomStatus.available),
-        ])
+        session.add_all(
+            [
+                HotelAmenity(hotel_id=hotel.id, icon="wifi", title="Wi-Fi"),
+                HotelAmenity(hotel_id=hotel.id, icon="pool", title="Havuz"),
+                HotelReview(hotel_id=hotel.id, reviewer_name="Ali", rating=9.8, text="Harika"),
+                Room(
+                    hotel_id=hotel.id,
+                    room_number=f"H{uuid.uuid4().hex[:6].upper()}",
+                    type=RoomType.double,
+                    capacity=2,
+                    price_per_night=3000.0,
+                    status=RoomStatus.available,
+                ),
+            ]
+        )
         await session.commit()
         await session.refresh(hotel)
     return hotel
@@ -119,7 +136,9 @@ async def test_list_hotels_filter_city(client: AsyncClient, istanbul_hotel: Hote
 
 
 @pytest.mark.asyncio
-async def test_list_hotels_filter_location_alias_matches_district(client: AsyncClient, istanbul_hotel: Hotel):
+async def test_list_hotels_filter_location_alias_matches_district(
+    client: AsyncClient, istanbul_hotel: Hotel
+):
     resp = await client.get("/api/hotels?location=besiktas")
     assert resp.status_code == 200
     hotel_ids = {h["id"] for h in resp.json()["hotels"]}
@@ -127,7 +146,9 @@ async def test_list_hotels_filter_location_alias_matches_district(client: AsyncC
 
 
 @pytest.mark.asyncio
-async def test_list_hotels_filter_city_is_turkish_case_insensitive(client: AsyncClient, istanbul_hotel: Hotel):
+async def test_list_hotels_filter_city_is_turkish_case_insensitive(
+    client: AsyncClient, istanbul_hotel: Hotel
+):
     resp = await client.get("/api/hotels?city=istanbul")
     assert resp.status_code == 200
     hotel_ids = {h["id"] for h in resp.json()["hotels"]}
@@ -135,7 +156,9 @@ async def test_list_hotels_filter_city_is_turkish_case_insensitive(client: Async
 
 
 @pytest.mark.asyncio
-async def test_list_hotels_filter_location_handles_diacritics(client: AsyncClient, urgup_hotel: Hotel):
+async def test_list_hotels_filter_location_handles_diacritics(
+    client: AsyncClient, urgup_hotel: Hotel
+):
     resp = await client.get("/api/hotels?location=urgup")
     assert resp.status_code == 200
     hotel_ids = {h["id"] for h in resp.json()["hotels"]}
@@ -195,7 +218,9 @@ async def test_list_hotels_invalid_dates(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_list_hotels_filters_by_guests_capacity(client: AsyncClient, limited_capacity_hotel: Hotel):
+async def test_list_hotels_filters_by_guests_capacity(
+    client: AsyncClient, limited_capacity_hotel: Hotel
+):
     resp = await client.get("/api/hotels?city=Testopolis&guests=3")
     assert resp.status_code == 200
     assert resp.json()["hotels"] == []
@@ -208,9 +233,7 @@ async def test_get_hotel_detail_filters_rooms_by_availability(
     istanbul_hotel: Hotel,
 ):
     async with session_factory() as session:
-        result = await session.execute(
-            select(Room).where(Room.hotel_id == istanbul_hotel.id)
-        )
+        result = await session.execute(select(Room).where(Room.hotel_id == istanbul_hotel.id))
         room = result.scalars().first()
         session.add(
             Booking(

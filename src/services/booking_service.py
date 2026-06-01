@@ -24,14 +24,18 @@ def _min_capacity_per_room(guests: int, rooms_count: int) -> int:
     return max(1, (max(1, guests) + rooms - 1) // rooms)
 
 
-async def _is_room_available(db: AsyncSession, room_id: int, check_in: date, check_out: date) -> bool:
+async def _is_room_available(
+    db: AsyncSession, room_id: int, check_in: date, check_out: date
+) -> bool:
     result = await db.execute(
-        select(Booking.id).where(
+        select(Booking.id)
+        .where(
             Booking.room_id == room_id,
             Booking.status == BookingStatus.confirmed,
             Booking.check_in < check_out,
             Booking.check_out > check_in,
-        ).limit(1)
+        )
+        .limit(1)
     )
     return result.scalar_one_or_none() is None
 

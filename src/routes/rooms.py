@@ -17,7 +17,9 @@ async def list_rooms(
     db: AsyncSession = Depends(get_db),
 ):
     if (check_in is None) != (check_out is None):
-        raise HTTPException(status_code=400, detail="Provide both check_in and check_out or neither")
+        raise HTTPException(
+            status_code=400, detail="Provide both check_in and check_out or neither"
+        )
     if check_in and check_out and check_out <= check_in:
         raise HTTPException(status_code=400, detail="check_out must be after check_in")
     return await room_service.list_rooms(db, check_in, check_out)

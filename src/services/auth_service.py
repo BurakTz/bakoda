@@ -67,7 +67,9 @@ async def get_optional_user(
         user_id: str | None = payload.get("sub")
         if user_id is None:
             return None
-        result = await db.execute(select(User).where(User.id == int(user_id), User.is_active.is_(True)))
+        result = await db.execute(
+            select(User).where(User.id == int(user_id), User.is_active.is_(True))
+        )
         return result.scalar_one_or_none()
     except JWTError:
         return None

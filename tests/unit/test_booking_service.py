@@ -16,7 +16,14 @@ from src.services.booking_service import (
 
 def _room(**kw) -> Room:
     r = Room()
-    defaults = dict(id=1, room_number="101", type=RoomType.double, capacity=2, price_per_night=100.0, status=RoomStatus.available)
+    defaults = dict(
+        id=1,
+        room_number="101",
+        type=RoomType.double,
+        capacity=2,
+        price_per_night=100.0,
+        status=RoomStatus.available,
+    )
     defaults.update(kw)
     for k, v in defaults.items():
         setattr(r, k, v)
@@ -25,9 +32,17 @@ def _room(**kw) -> Room:
 
 def _booking(**kw) -> Booking:
     b = Booking()
-    defaults = dict(id=1, room_id=1, guest_name="Ali", guest_email="ali@x.com",
-                    check_in=date(2026, 7, 1), check_out=date(2026, 7, 3),
-                    total_price=200.0, status=BookingStatus.confirmed, confirmation_key=None)
+    defaults = dict(
+        id=1,
+        room_id=1,
+        guest_name="Ali",
+        guest_email="ali@x.com",
+        check_in=date(2026, 7, 1),
+        check_out=date(2026, 7, 3),
+        total_price=200.0,
+        status=BookingStatus.confirmed,
+        confirmation_key=None,
+    )
     defaults.update(kw)
     for k, v in defaults.items():
         setattr(b, k, v)

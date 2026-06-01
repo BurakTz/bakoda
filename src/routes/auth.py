@@ -1,15 +1,21 @@
 import random
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.models import PasswordResetCode, User
 from src.schemas import (
-    ForgotPasswordIn, LoginIn, RegisterIn, ResetPasswordIn,
-    TokenOut, UserOut, VerifyResetCodeIn, VerifyResetCodeOut,
+    ForgotPasswordIn,
+    LoginIn,
+    RegisterIn,
+    ResetPasswordIn,
+    TokenOut,
+    UserOut,
+    VerifyResetCodeIn,
+    VerifyResetCodeOut,
 )
 from src.services.auth_service import create_access_token, hash_password, verify_password
 
@@ -36,7 +42,9 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenOut)
 async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == payload.email, User.is_active.is_(True)))
+    result = await db.execute(
+        select(User).where(User.email == payload.email, User.is_active.is_(True))
+    )
     user = result.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı")
@@ -51,6 +59,7 @@ async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(
     await db.commit()
     # Gerçek projede burada e-posta gönderilir; şimdilik loga yazıyoruz
     import logging
+
     logging.getLogger(__name__).info("Reset code for %s: %s", payload.email, code)
     return {"message": "Sıfırlama kodu gönderildi", "dev_code": code}
 

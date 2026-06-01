@@ -3,6 +3,7 @@ Shared fixtures for E2E tests (API + browser).
 
 Requires a running app at BASE_URL (default http://localhost:8000), e.g. docker compose up.
 """
+
 from __future__ import annotations
 
 import os

@@ -1,5 +1,5 @@
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -73,7 +73,7 @@ async def test_get_room_not_found():
 @pytest.mark.asyncio
 async def test_create_room():
     mock_db = AsyncMock()
-    room = await room_service.create_room(
+    await room_service.create_room(
         mock_db,
         room_number="202",
         type=RoomType.suite,

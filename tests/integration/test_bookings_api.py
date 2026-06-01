@@ -1,6 +1,5 @@
-from unittest.mock import patch
-
 import uuid
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
@@ -27,22 +26,32 @@ async def book_room(session_factory, sample_hotel) -> Room:
 
 def _s3_patch():
     return (
-        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="confirmations/1.json"),
-        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/presigned"),
+        patch(
+            "src.routes.bookings.s3_service.upload_confirmation",
+            return_value="confirmations/1.json",
+        ),
+        patch(
+            "src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/presigned"
+        ),
     )
 
 
 @pytest.mark.asyncio
 async def test_create_booking_success(client: AsyncClient, book_room: Room):
-    with patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"), \
-         patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"):
-        resp = await client.post("/api/bookings", json={
-            "room_id": book_room.id,
-            "guest_name": "Ayşe Demir",
-            "guest_email": "ayse@test.com",
-            "check_in": "2027-03-01",
-            "check_out": "2027-03-05",
-        })
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Ayşe Demir",
+                "guest_email": "ayse@test.com",
+                "check_in": "2027-03-01",
+                "check_out": "2027-03-05",
+            },
+        )
     assert resp.status_code == 201
     data = resp.json()
     assert data["room_id"] == book_room.id
@@ -60,8 +69,10 @@ async def test_create_booking_conflict(client: AsyncClient, book_room: Room):
         "check_in": "2027-04-01",
         "check_out": "2027-04-05",
     }
-    with patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"), \
-         patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"):
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
         await client.post("/api/bookings", json=payload)
         resp = await client.post("/api/bookings", json={**payload, "guest_email": "b@test.com"})
     assert resp.status_code == 409
@@ -87,28 +98,36 @@ async def test_create_booking_rejects_insufficient_rooms(
         await session.refresh(lone)
         room_id = lone.id
 
-    with patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"), \
-         patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"):
-        resp = await client.post("/api/bookings", json={
-            "room_id": room_id,
-            "guest_name": "Multi Room",
-            "guest_email": "multi@test.com",
-            "check_in": "2027-08-10",
-            "check_out": "2027-08-12",
-            "rooms_count": 2,
-        })
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": room_id,
+                "guest_name": "Multi Room",
+                "guest_email": "multi@test.com",
+                "check_in": "2027-08-10",
+                "check_out": "2027-08-12",
+                "rooms_count": 2,
+            },
+        )
     assert resp.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_create_booking_invalid_dates(client: AsyncClient, book_room: Room):
-    resp = await client.post("/api/bookings", json={
-        "room_id": book_room.id,
-        "guest_name": "Test",
-        "guest_email": "t@test.com",
-        "check_in": "2027-05-05",
-        "check_out": "2027-05-01",
-    })
+    resp = await client.post(
+        "/api/bookings",
+        json={
+            "room_id": book_room.id,
+            "guest_name": "Test",
+            "guest_email": "t@test.com",
+            "check_in": "2027-05-05",
+            "check_out": "2027-05-01",
+        },
+    )
     assert resp.status_code == 422
 
 
@@ -120,15 +139,20 @@ async def test_get_booking_not_found(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_cancel_booking(client: AsyncClient, book_room: Room):
-    with patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"), \
-         patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"):
-        create_resp = await client.post("/api/bookings", json={
-            "room_id": book_room.id,
-            "guest_name": "Cancel Me",
-            "guest_email": "cancel@test.com",
-            "check_in": "2027-06-01",
-            "check_out": "2027-06-03",
-        })
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Cancel Me",
+                "guest_email": "cancel@test.com",
+                "check_in": "2027-06-01",
+                "check_out": "2027-06-03",
+            },
+        )
     booking_id = create_resp.json()["id"]
     cancel_resp = await client.patch(f"/api/bookings/{booking_id}/cancel")
     assert cancel_resp.status_code == 200
@@ -137,14 +161,19 @@ async def test_cancel_booking(client: AsyncClient, book_room: Room):
 
 @pytest.mark.asyncio
 async def test_create_booking_survives_s3_upload_failure(client: AsyncClient, book_room: Room):
-    with patch("src.routes.bookings.s3_service.upload_confirmation", side_effect=RuntimeError("s3 down")):
-        resp = await client.post("/api/bookings", json={
-            "room_id": book_room.id,
-            "guest_name": "S3 Fail",
-            "guest_email": "s3fail@test.com",
-            "check_in": "2027-09-01",
-            "check_out": "2027-09-03",
-        })
+    with patch(
+        "src.routes.bookings.s3_service.upload_confirmation", side_effect=RuntimeError("s3 down")
+    ):
+        resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "S3 Fail",
+                "guest_email": "s3fail@test.com",
+                "check_in": "2027-09-01",
+                "check_out": "2027-09-03",
+            },
+        )
     assert resp.status_code == 201
     assert resp.json()["confirmation_url"] is None
 
@@ -154,18 +183,30 @@ async def test_get_booking_presigned_url_failure_still_returns_booking(
     client: AsyncClient,
     book_room: Room,
 ):
-    with patch("src.routes.bookings.s3_service.upload_confirmation", return_value="confirmations/x.json"), \
-         patch("src.routes.bookings.s3_service.get_presigned_url", side_effect=RuntimeError("s3 down")):
-        create_resp = await client.post("/api/bookings", json={
-            "room_id": book_room.id,
-            "guest_name": "Presign Fail",
-            "guest_email": "presign@test.com",
-            "check_in": "2027-10-01",
-            "check_out": "2027-10-03",
-        })
+    with (
+        patch(
+            "src.routes.bookings.s3_service.upload_confirmation",
+            return_value="confirmations/x.json",
+        ),
+        patch(
+            "src.routes.bookings.s3_service.get_presigned_url", side_effect=RuntimeError("s3 down")
+        ),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Presign Fail",
+                "guest_email": "presign@test.com",
+                "check_in": "2027-10-01",
+                "check_out": "2027-10-03",
+            },
+        )
     booking_id = create_resp.json()["id"]
 
-    with patch("src.routes.bookings.s3_service.get_presigned_url", side_effect=RuntimeError("s3 down")):
+    with patch(
+        "src.routes.bookings.s3_service.get_presigned_url", side_effect=RuntimeError("s3 down")
+    ):
         resp = await client.get(f"/api/bookings/{booking_id}")
     assert resp.status_code == 200
     assert resp.json()["id"] == booking_id
@@ -180,15 +221,20 @@ async def test_cancel_booking_not_found(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_cancel_booking_twice(client: AsyncClient, book_room: Room):
-    with patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"), \
-         patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"):
-        create_resp = await client.post("/api/bookings", json={
-            "room_id": book_room.id,
-            "guest_name": "Cancel Twice",
-            "guest_email": "twice@test.com",
-            "check_in": "2027-07-01",
-            "check_out": "2027-07-03",
-        })
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        create_resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": book_room.id,
+                "guest_name": "Cancel Twice",
+                "guest_email": "twice@test.com",
+                "check_in": "2027-07-01",
+                "check_out": "2027-07-03",
+            },
+        )
     booking_id = create_resp.json()["id"]
     await client.patch(f"/api/bookings/{booking_id}/cancel")
     resp = await client.patch(f"/api/bookings/{booking_id}/cancel")

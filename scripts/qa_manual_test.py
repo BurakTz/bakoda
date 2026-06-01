@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Manual-style QA smoke test for Bakoda app."""
+
 import json
 import sys
 import urllib.error
@@ -56,11 +57,23 @@ def ok(msg):
 
 print("=== FRONTEND PAGES ===")
 pages = [
-    "/", "/index.html", "/search-results.html", "/hotel-detail.html",
-    "/booking.html", "/payment.html", "/confirmation.html",
-    "/login.html", "/register.html", "/forgot-password.html",
-    "/profile.html", "/payment-methods.html", "/security.html",
-    "/favorites.html", "/my-bookings.html", "/about.html", "/contact.html",
+    "/",
+    "/index.html",
+    "/search-results.html",
+    "/hotel-detail.html",
+    "/booking.html",
+    "/payment.html",
+    "/confirmation.html",
+    "/login.html",
+    "/register.html",
+    "/forgot-password.html",
+    "/profile.html",
+    "/payment-methods.html",
+    "/security.html",
+    "/favorites.html",
+    "/my-bookings.html",
+    "/about.html",
+    "/contact.html",
     "/nonexistent-page.html",
 ]
 for p in pages:
@@ -69,7 +82,7 @@ for p in pages:
         if status != 404:
             fail("Navbar/Footer", "Medium", f"Expected 404 for missing page, got {status}")
         else:
-            ok(f"404 for missing page")
+            ok("404 for missing page")
     elif status != 200:
         fail("Pages", "Critical", f"{p} returned {status}")
     elif size < 100:
@@ -91,7 +104,10 @@ else:
 check_in = (date.today() + timedelta(days=60)).isoformat()
 check_out = (date.today() + timedelta(days=63)).isoformat()
 
-s, data = req("GET", f"/api/hotels?location=Istanbul&check_in={check_in}&check_out={check_out}&guests=2&sort=price_asc")
+s, data = req(
+    "GET",
+    f"/api/hotels?location=Istanbul&check_in={check_in}&check_out={check_out}&guests=2&sort=price_asc",
+)
 if s != 200:
     fail("Search", "Critical", f"Search with filters -> {s}: {data}")
 else:
@@ -120,9 +136,11 @@ if s != 404:
 
 print("\n=== AUTH ===")
 email = f"qatest_{date.today().strftime('%Y%m%d')}@test.com"
-s, reg = req("POST", "/api/auth/register", {
-    "email": email, "password": "TestPass123!", "first_name": "QA", "last_name": "Tester"
-})
+s, reg = req(
+    "POST",
+    "/api/auth/register",
+    {"email": email, "password": "TestPass123!", "first_name": "QA", "last_name": "Tester"},
+)
 if s == 409:
     s, login = req("POST", "/api/auth/login", {"email": email, "password": "TestPass123!"})
     token = login.get("access_token") if s == 200 else None
@@ -184,15 +202,20 @@ if token:
     else:
         ok(f"Payment methods: {len(cards)} cards")
 
-    s, card = req("POST", "/api/users/me/payment-methods", token=token, body={
-        "brand": "visa",
-        "last4": "4242",
-        "holder_name": "QA Tester",
-        "exp_month": 12,
-        "exp_year": 28,
-        "card_type": "Kredi",
-        "is_default": True,
-    })
+    s, card = req(
+        "POST",
+        "/api/users/me/payment-methods",
+        token=token,
+        body={
+            "brand": "visa",
+            "last4": "4242",
+            "holder_name": "QA Tester",
+            "exp_month": 12,
+            "exp_year": 28,
+            "card_type": "Kredi",
+            "is_default": True,
+        },
+    )
     if s != 201:
         fail("Payment Methods", "High", f"Add card -> {s}: {card}")
     else:
@@ -204,9 +227,12 @@ if token:
     else:
         ok("Billing address retrieved")
 
-    s, pw = req("POST", "/api/users/me/change-password", token=token, body={
-        "current_password": "TestPass123!", "new_password": "TestPass123!"
-    })
+    s, pw = req(
+        "POST",
+        "/api/users/me/change-password",
+        token=token,
+        body={"current_password": "TestPass123!", "new_password": "TestPass123!"},
+    )
     if s != 200:
         fail("Security", "Medium", f"Same password change -> {s}: {pw}")
     else:
@@ -224,19 +250,25 @@ elif hotels:
 if room_id:
     # Use unique dates per run to avoid 409 on repeated QA runs
     import random
+
     offset = random.randint(90, 365)
     check_in = (date.today() + timedelta(days=offset)).isoformat()
     check_out = (date.today() + timedelta(days=offset + 3)).isoformat()
-    s, booking = req("POST", "/api/bookings", body={
-        "room_id": room_id,
-        "guest_name": "QA Tester",
-        "guest_email": email,
-        "phone": "+905551234567",
-        "check_in": check_in,
-        "check_out": check_out,
-        "guests": 2,
-        "rooms_count": 1,
-    }, token=token)
+    s, booking = req(
+        "POST",
+        "/api/bookings",
+        body={
+            "room_id": room_id,
+            "guest_name": "QA Tester",
+            "guest_email": email,
+            "phone": "+905551234567",
+            "check_in": check_in,
+            "check_out": check_out,
+            "guests": 2,
+            "rooms_count": 1,
+        },
+        token=token,
+    )
     if s != 201:
         fail("Booking", "Critical", f"Create booking -> {s}: {booking}")
     else:
@@ -248,7 +280,11 @@ if room_id:
         else:
             ok("Booking retrieval OK")
 
-        s, pay = req("POST", "/api/payments", body={"booking_id": bid, "payment_method": "card", "total": booking.get("total_price")})
+        s, pay = req(
+            "POST",
+            "/api/payments",
+            body={"booking_id": bid, "payment_method": "card", "total": booking.get("total_price")},
+        )
         if s != 200 or pay.get("status") != "success":
             fail("Payment", "Critical", f"Payment -> {s}: {pay}")
         else:
@@ -257,9 +293,11 @@ else:
     fail("Booking", "Critical", "No room_id available for booking test")
 
 print("\n=== CONTACT ===")
-s, contact = req("POST", "/api/contact", body={
-    "name": "QA", "email": email, "subject": "Test", "message": "QA test message"
-})
+s, contact = req(
+    "POST",
+    "/api/contact",
+    body={"name": "QA", "email": email, "subject": "Test", "message": "QA test message"},
+)
 if s not in (200, 201):
     fail("Contact", "High", f"Contact form -> {s}: {contact}")
 else:
@@ -267,9 +305,12 @@ else:
 
 print("\n=== REVIEWS (auth required) ===")
 if token and hotels:
-    s, review = req("POST", f"/api/hotels/{hotel_id}/reviews", token=token, body={
-        "rating": 8.5, "title": "QA Review", "text": "Automated test review"
-    })
+    s, review = req(
+        "POST",
+        f"/api/hotels/{hotel_id}/reviews",
+        token=token,
+        body={"rating": 8.5, "title": "QA Review", "text": "Automated test review"},
+    )
     if s != 201:
         fail("Hotel Detail", "High", f"Create review -> {s}: {review}")
     else:

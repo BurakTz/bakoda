@@ -38,7 +38,12 @@ def upload_confirmation(booking_id: int, payload: dict) -> str:
         Body=json.dumps(payload),
         ContentType="application/json",
     )
-    logger.info("Uploaded confirmation for booking %d to s3://%s/%s", booking_id, settings.s3_bucket_name, key)
+    logger.info(
+        "Uploaded confirmation for booking %d to s3://%s/%s",
+        booking_id,
+        settings.s3_bucket_name,
+        key,
+    )
     return key
 
 

@@ -61,7 +61,9 @@ async def test_get_current_user_invalid_token():
 
 @pytest.mark.asyncio
 async def test_get_current_user_missing_sub():
-    token = jwt.encode({"exp": 9999999999}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(
+        {"exp": 9999999999}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
     with pytest.raises(HTTPException) as exc:
         await get_current_user(token=token, db=_db_with_user(_user()))
     assert exc.value.status_code == 401
@@ -95,7 +97,9 @@ async def test_get_optional_user_invalid_token():
 
 @pytest.mark.asyncio
 async def test_get_optional_user_missing_sub():
-    token = jwt.encode({"exp": 9999999999}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(
+        {"exp": 9999999999}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
     assert await get_optional_user(token=token, db=_db_with_user(_user())) is None
 
 

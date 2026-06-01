@@ -3,10 +3,11 @@ E2E tests using Playwright against a live running app (BASE_URL env var).
 These tests expect the app + postgres to be up (e.g. via docker compose).
 Run with: BASE_URL=http://localhost:8000 pytest tests/e2e/
 """
+
 import os
 
 import pytest
-from playwright.sync_api import APIRequestContext, Playwright, expect
+from playwright.sync_api import APIRequestContext, Playwright
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -44,13 +45,16 @@ def test_full_booking_flow(api_context: APIRequestContext):
     room_id = rooms[0]["id"]
 
     # Create a booking
-    resp = api_context.post("/api/bookings", data={
-        "room_id": room_id,
-        "guest_name": "E2E Guest",
-        "guest_email": "e2e@test.com",
-        "check_in": "2027-03-01",
-        "check_out": "2027-03-05",
-    })
+    resp = api_context.post(
+        "/api/bookings",
+        data={
+            "room_id": room_id,
+            "guest_name": "E2E Guest",
+            "guest_email": "e2e@test.com",
+            "check_in": "2027-03-01",
+            "check_out": "2027-03-05",
+        },
+    )
     assert resp.status == 201
     booking = resp.json()
     assert booking["status"] == "confirmed"
@@ -93,13 +97,16 @@ def test_cancel_booking_flow(api_context: APIRequestContext):
     assert len(rooms) > 0
 
     room_id = rooms[0]["id"]
-    create = api_context.post("/api/bookings", data={
-        "room_id": room_id,
-        "guest_name": "Cancel Guest",
-        "guest_email": "cancel_e2e@test.com",
-        "check_in": "2027-05-01",
-        "check_out": "2027-05-02",
-    })
+    create = api_context.post(
+        "/api/bookings",
+        data={
+            "room_id": room_id,
+            "guest_name": "Cancel Guest",
+            "guest_email": "cancel_e2e@test.com",
+            "check_in": "2027-05-01",
+            "check_out": "2027-05-02",
+        },
+    )
     booking_id = create.json()["id"]
 
     cancel = api_context.patch(f"/api/bookings/{booking_id}/cancel")
@@ -107,7 +114,7 @@ def test_cancel_booking_flow(api_context: APIRequestContext):
     assert cancel.json()["status"] == "cancelled"
 
     # After cancel, same dates should be bookable again
-    rebooking = api_context.get(f"/api/rooms?check_in=2027-05-01&check_out=2027-05-02")
+    rebooking = api_context.get("/api/rooms?check_in=2027-05-01&check_out=2027-05-02")
     assert rebooking.ok
     available_ids = [r["id"] for r in rebooking.json()]
     assert room_id in available_ids

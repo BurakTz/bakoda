@@ -4,12 +4,12 @@ import uuid
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.database import Base, get_db
 from src.main import app
-from src.models import Hotel, HotelAmenity, Room, RoomStatus, RoomType
+from src.models import Hotel, Room, RoomStatus, RoomType
 
 _TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
@@ -23,13 +23,18 @@ def pg_container():
         yield None
         return
     from testcontainers.postgres import PostgresContainer
+
     with PostgresContainer("postgres:16-alpine") as pg:
         yield pg
 
 
 @pytest_asyncio.fixture(scope="session")
 async def db_engine(pg_container):
-    url = _TEST_DB_URL if pg_container is None else pg_container.get_connection_url().replace("psycopg2", "asyncpg")
+    url = (
+        _TEST_DB_URL
+        if pg_container is None
+        else pg_container.get_connection_url().replace("psycopg2", "asyncpg")
+    )
     engine = create_async_engine(url, echo=False, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -100,16 +105,22 @@ async def sample_room(session_factory, sample_hotel: Hotel) -> Room:
 @pytest_asyncio.fixture()
 async def auth_client(client: AsyncClient):
     """Token'lı client döner. (client, headers) tuple."""
-    resp = await client.post("/api/auth/register", json={
-        "email": "fixture_user@bakoda.com",
-        "password": "Test1234!",
-        "first_name": "Fixture",
-        "last_name": "User",
-    })
-    if resp.status_code == 409:
-        resp = await client.post("/api/auth/login", json={
+    resp = await client.post(
+        "/api/auth/register",
+        json={
             "email": "fixture_user@bakoda.com",
             "password": "Test1234!",
-        })
+            "first_name": "Fixture",
+            "last_name": "User",
+        },
+    )
+    if resp.status_code == 409:
+        resp = await client.post(
+            "/api/auth/login",
+            json={
+                "email": "fixture_user@bakoda.com",
+                "password": "Test1234!",
+            },
+        )
     token = resp.json()["access_token"]
     return client, {"Authorization": f"Bearer {token}"}

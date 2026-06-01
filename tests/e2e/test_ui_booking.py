@@ -7,6 +7,7 @@ Run (app must be up on BASE_URL):
 Install Playwright browsers once:
     poetry run playwright install chromium
 """
+
 from __future__ import annotations
 
 import re

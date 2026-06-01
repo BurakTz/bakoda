@@ -15,8 +15,8 @@ from src.schemas import (
     UserOut,
     UserUpdate,
 )
+from src.services import payment_method_service, user_service
 from src.services.auth_service import get_current_user, hash_password, verify_password
-from src.services import user_service, payment_method_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -32,7 +32,9 @@ async def update_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    updated = await user_service.update_user(db, current_user, payload.model_dump(exclude_none=True))
+    updated = await user_service.update_user(
+        db, current_user, payload.model_dump(exclude_none=True)
+    )
     return UserOut.model_validate(updated)
 
 
@@ -121,9 +123,7 @@ async def add_payment_method(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    card = await payment_method_service.create_card(
-        db, current_user.id, payload.model_dump()
-    )
+    card = await payment_method_service.create_card(db, current_user.id, payload.model_dump())
     return SavedCardOut(**payment_method_service.card_to_out(card))
 
 

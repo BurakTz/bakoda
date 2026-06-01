@@ -42,9 +42,7 @@ async def list_cards(db: AsyncSession, user_id: int) -> list[SavedCard]:
 
 
 async def _clear_default(db: AsyncSession, user_id: int) -> None:
-    await db.execute(
-        update(SavedCard).where(SavedCard.user_id == user_id).values(is_default=False)
-    )
+    await db.execute(update(SavedCard).where(SavedCard.user_id == user_id).values(is_default=False))
 
 
 async def create_card(db: AsyncSession, user_id: int, data: dict) -> SavedCard:
@@ -124,9 +122,7 @@ async def delete_card(db: AsyncSession, user_id: int, card_id: int) -> bool:
 
 
 async def get_billing(db: AsyncSession, user_id: int) -> BillingAddress | None:
-    result = await db.execute(
-        select(BillingAddress).where(BillingAddress.user_id == user_id)
-    )
+    result = await db.execute(select(BillingAddress).where(BillingAddress.user_id == user_id))
     return result.scalar_one_or_none()
 
 

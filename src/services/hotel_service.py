@@ -6,7 +6,6 @@ from sqlalchemy.orm import selectinload
 
 from src.models import Booking, BookingStatus, Hotel, HotelReview, Room, RoomStatus
 
-
 _LOCATION_NORMALIZATION_REPLACEMENTS = (
     ("ı", "i"),
     ("İ", "i"),
@@ -215,8 +214,9 @@ async def create_hotel_review(
     await db.flush()
 
     stats = await db.execute(
-        select(func.count(HotelReview.id), func.avg(HotelReview.rating))
-        .where(HotelReview.hotel_id == hotel_id)
+        select(func.count(HotelReview.id), func.avg(HotelReview.rating)).where(
+            HotelReview.hotel_id == hotel_id
+        )
     )
     reviews_count, avg_rating = stats.one()
     hotel.reviews_count = int(reviews_count or 0)

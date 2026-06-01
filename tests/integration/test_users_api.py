@@ -5,12 +5,15 @@ from src.models import Hotel
 
 
 async def _register(client: AsyncClient, email: str) -> str:
-    resp = await client.post("/api/auth/register", json={
-        "email": email,
-        "password": "Secure123",
-        "first_name": "Test",
-        "last_name": "User",
-    })
+    resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": "Secure123",
+            "first_name": "Test",
+            "last_name": "User",
+        },
+    )
     return resp.json()["access_token"]
 
 
@@ -91,16 +94,22 @@ async def test_change_password(client: AsyncClient):
     )
     assert ok.status_code == 200
 
-    login_old = await client.post("/api/auth/login", json={
-        "email": "changepw@bakoda.com",
-        "password": "Secure123",
-    })
+    login_old = await client.post(
+        "/api/auth/login",
+        json={
+            "email": "changepw@bakoda.com",
+            "password": "Secure123",
+        },
+    )
     assert login_old.status_code == 401
 
-    login_new = await client.post("/api/auth/login", json={
-        "email": "changepw@bakoda.com",
-        "password": "NewSecure1",
-    })
+    login_new = await client.post(
+        "/api/auth/login",
+        json={
+            "email": "changepw@bakoda.com",
+            "password": "NewSecure1",
+        },
+    )
     assert login_new.status_code == 200
 
 
@@ -113,15 +122,19 @@ async def test_payment_methods_crud(client: AsyncClient):
     assert resp.status_code == 200
     assert resp.json() == []
 
-    resp = await client.post("/api/users/me/payment-methods", headers=headers, json={
-        "brand": "visa",
-        "last4": "4242",
-        "holder_name": "Test User",
-        "exp_month": 8,
-        "exp_year": 27,
-        "card_type": "Kredi",
-        "is_default": True,
-    })
+    resp = await client.post(
+        "/api/users/me/payment-methods",
+        headers=headers,
+        json={
+            "brand": "visa",
+            "last4": "4242",
+            "holder_name": "Test User",
+            "exp_month": 8,
+            "exp_year": 27,
+            "card_type": "Kredi",
+            "is_default": True,
+        },
+    )
     assert resp.status_code == 201
     card_id = resp.json()["id"]
     assert resp.json()["is_default"] is True
@@ -130,13 +143,17 @@ async def test_payment_methods_crud(client: AsyncClient):
     resp = await client.get("/api/users/me/payment-methods", headers=headers)
     assert len(resp.json()) == 1
 
-    resp = await client.post("/api/users/me/payment-methods", headers=headers, json={
-        "brand": "mc",
-        "last4": "5555",
-        "holder_name": "Test User",
-        "exp_month": 12,
-        "exp_year": 28,
-    })
+    resp = await client.post(
+        "/api/users/me/payment-methods",
+        headers=headers,
+        json={
+            "brand": "mc",
+            "last4": "5555",
+            "holder_name": "Test User",
+            "exp_month": 12,
+            "exp_year": 28,
+        },
+    )
     assert resp.status_code == 201
     second_id = resp.json()["id"]
 
@@ -144,9 +161,13 @@ async def test_payment_methods_crud(client: AsyncClient):
     assert resp.status_code == 200
     assert resp.json()["is_default"] is True
 
-    resp = await client.put(f"/api/users/me/payment-methods/{card_id}", headers=headers, json={
-        "holder_name": "Updated Name",
-    })
+    resp = await client.put(
+        f"/api/users/me/payment-methods/{card_id}",
+        headers=headers,
+        json={
+            "holder_name": "Updated Name",
+        },
+    )
     assert resp.status_code == 200
     assert resp.json()["holder_name"] == "Updated Name"
 
@@ -157,13 +178,17 @@ async def test_payment_methods_crud(client: AsyncClient):
     assert resp.status_code == 200
     assert "name" in resp.json()
 
-    resp = await client.put("/api/users/me/billing-address", headers=headers, json={
-        "name": "Test User",
-        "line": "Test Cad. 1",
-        "city": "İstanbul",
-        "zip_code": "34000",
-        "country": "Türkiye",
-    })
+    resp = await client.put(
+        "/api/users/me/billing-address",
+        headers=headers,
+        json={
+            "name": "Test User",
+            "line": "Test Cad. 1",
+            "city": "İstanbul",
+            "zip_code": "34000",
+            "country": "Türkiye",
+        },
+    )
     assert resp.status_code == 200
     assert resp.json()["city"] == "İstanbul"
 
@@ -175,8 +200,11 @@ async def test_delete_me(client: AsyncClient):
     resp = await client.delete("/api/users/me", headers=headers)
     assert resp.status_code == 204
     # Silinen kullanıcı artık giriş yapamaz
-    login_resp = await client.post("/api/auth/login", json={
-        "email": "deleteme@bakoda.com",
-        "password": "Secure123",
-    })
+    login_resp = await client.post(
+        "/api/auth/login",
+        json={
+            "email": "deleteme@bakoda.com",
+            "password": "Secure123",
+        },
+    )
     assert login_resp.status_code == 401

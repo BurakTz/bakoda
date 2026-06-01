@@ -30,12 +30,20 @@ async def list_hotels(
     if check_in and check_out and check_out <= check_in:
         raise HTTPException(status_code=400, detail="check_out must be after check_in")
 
-    location_query = (location if location is not None else city)
+    location_query = location if location is not None else city
 
     hotels, total = await hotel_service.search_hotels(
-        db, city=location_query, check_in=check_in, check_out=check_out,
-        guests=guests, rooms=rooms, price_min=price_min, price_max=price_max,
-        stars=stars, sort=sort, page=page,
+        db,
+        city=location_query,
+        check_in=check_in,
+        check_out=check_out,
+        guests=guests,
+        rooms=rooms,
+        price_min=price_min,
+        price_max=price_max,
+        stars=stars,
+        sort=sort,
+        page=page,
     )
     return {
         "hotels": [HotelOut.model_validate(h) for h in hotels],
@@ -53,7 +61,9 @@ async def get_hotel(
     db: AsyncSession = Depends(get_db),
 ):
     if (check_in is None) != (check_out is None):
-        raise HTTPException(status_code=400, detail="Provide both check_in and check_out or neither")
+        raise HTTPException(
+            status_code=400, detail="Provide both check_in and check_out or neither"
+        )
     if check_in and check_out and check_out <= check_in:
         raise HTTPException(status_code=400, detail="check_out must be after check_in")
 
@@ -74,7 +84,9 @@ async def create_hotel_review(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    reviewer_name = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
+    reviewer_name = (
+        f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
+    )
     review = await hotel_service.create_hotel_review(
         db=db,
         hotel_id=hotel_id,

@@ -5,12 +5,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from prometheus_fastapi_instrumentator import Instrumentator
-
-from src.config import settings
-from src.database import init_db
-from src.routes import auth, bookings, contact, hotels, payments, rooms, users
-from src.schemas import HealthOut
 
 # ── OpenTelemetry setup ──────────────────────────────────────────────────────
 from opentelemetry import trace
@@ -20,6 +14,12 @@ from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from src.config import settings
+from src.database import init_db
+from src.routes import auth, bookings, contact, hotels, payments, rooms, users
+from src.schemas import HealthOut
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)

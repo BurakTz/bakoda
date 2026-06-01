@@ -12,8 +12,12 @@ class RoomFactory(factory.Factory):
 
     room_number = factory.LazyFunction(lambda: f"{fake.random_int(1, 9)}{fake.bothify('##')}")
     type = factory.Iterator([RoomType.single, RoomType.double, RoomType.suite])
-    capacity = factory.LazyAttribute(lambda o: 1 if o.type == RoomType.single else (2 if o.type == RoomType.double else 4))
-    price_per_night = factory.LazyFunction(lambda: round(fake.pyfloat(min_value=50, max_value=500, right_digits=2), 2))
+    capacity = factory.LazyAttribute(
+        lambda o: 1 if o.type == RoomType.single else (2 if o.type == RoomType.double else 4)
+    )
+    price_per_night = factory.LazyFunction(
+        lambda: round(fake.pyfloat(min_value=50, max_value=500, right_digits=2), 2)
+    )
     status = RoomStatus.available
 
 
@@ -28,6 +32,8 @@ class BookingFactory(factory.Factory):
     check_out = factory.LazyAttribute(
         lambda o: fake.date_between(start_date=o.check_in, end_date="+40d")
     )
-    total_price = factory.LazyFunction(lambda: round(fake.pyfloat(min_value=100, max_value=2000, right_digits=2), 2))
+    total_price = factory.LazyFunction(
+        lambda: round(fake.pyfloat(min_value=100, max_value=2000, right_digits=2), 2)
+    )
     status = BookingStatus.confirmed
     confirmation_key = None

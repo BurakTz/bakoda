@@ -1,8 +1,8 @@
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
@@ -11,7 +11,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 from src.database import Base  # noqa: E402
-from src.models import Room, Booking  # noqa: E402, F401
+from src.models import Booking, Room  # noqa: E402, F401
 
 target_metadata = Base.metadata
 
