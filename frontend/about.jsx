@@ -47,7 +47,7 @@ const QUOTES = [
 function App() {
   return (
     <>
-      <Navbar active="Hakkımızda" />
+      <Navbar active="nav.about" />
 
       <div style={{ paddingTop: 72 }}>
         {/* ── Hero ── */}
@@ -128,8 +128,8 @@ function App() {
                     <div className="team-name">{m.name}</div>
                     <div className="team-role">{m.role}</div>
                     <div className="team-links">
-                      <a href="#" aria-label="LinkedIn"><IconLink size={13} /></a>
-                      <a href="#" aria-label="Instagram"><IconInstagram size={13} /></a>
+                      <a href="https://linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn"><IconLink size={13} /></a>
+                      <a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram"><IconInstagram size={13} /></a>
                     </div>
                   </div>
                 </article>

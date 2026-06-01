@@ -50,6 +50,10 @@ class User(Base):
 
     bookings: Mapped[list["Booking"]] = relationship("Booking", back_populates="user")
     favorites: Mapped[list["Favorite"]] = relationship("Favorite", back_populates="user")
+    saved_cards: Mapped[list["SavedCard"]] = relationship("SavedCard", back_populates="user")
+    billing_address: Mapped["BillingAddress | None"] = relationship(
+        "BillingAddress", back_populates="user", uselist=False
+    )
 
 
 # ── Hotel ────────────────────────────────────────────────────────────────────
@@ -171,6 +175,44 @@ class Favorite(Base):
 
     user: Mapped["User"] = relationship("User", back_populates="favorites")
     hotel: Mapped["Hotel"] = relationship("Hotel", back_populates="favorites")
+
+
+# ── Saved payment methods ─────────────────────────────────────────────────────
+
+class SavedCard(Base):
+    __tablename__ = "saved_cards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    brand: Mapped[str] = mapped_column(String(20), nullable=False)
+    last4: Mapped[str] = mapped_column(String(4), nullable=False)
+    holder_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    exp_month: Mapped[int] = mapped_column(Integer, nullable=False)
+    exp_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    card_type: Mapped[str] = mapped_column(String(20), nullable=False, default="Kredi")
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship("User", back_populates="saved_cards")
+
+
+class BillingAddress(Base):
+    __tablename__ = "billing_addresses"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_user_billing_address"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    line: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    district: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    city: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    zip_code: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    country: Mapped[str] = mapped_column(String(100), nullable=False, default="Türkiye")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="billing_address")
 
 
 # ── PasswordResetCode ────────────────────────────────────────────────────────

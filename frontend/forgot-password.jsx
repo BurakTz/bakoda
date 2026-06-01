@@ -204,7 +204,7 @@ function CodeStep({ email, code, setCode, onNext, onBack, flash }) {
       </div>
 
       <div style={{ marginTop: 18, fontSize: 12, color: "var(--muted)", fontFamily:"var(--mono)", letterSpacing:".04em", textAlign:"center" }}>
-        Demo · Kod: <b style={{ color: "var(--primary)" }}>123456</b>
+        Güvenlik için doğrulama kodu yalnızca e-posta adresinize iletilir.
       </div>
     </form>
   );

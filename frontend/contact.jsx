@@ -82,13 +82,13 @@ function ContactForm({ flash }) {
         <div className="field">
           <label htmlFor="name">Adınız <span className="req">*</span></label>
           <input id="name" className={`input ${errors.name?"err":""}`} type="text" autoComplete="name"
-                 value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Selin Karaca" />
+                 value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Ad Soyad" />
           {errors.name && <span className="err-msg"><IconClose size={11} /> {errors.name}</span>}
         </div>
         <div className="field">
           <label htmlFor="email">E-posta <span className="req">*</span></label>
           <input id="email" className={`input ${errors.email?"err":""}`} type="email" autoComplete="email"
-                 value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="selin@ornek.com" />
+                 value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="ornek@eposta.com" />
           {errors.email && <span className="err-msg"><IconClose size={11} /> {errors.email}</span>}
         </div>
       </div>
@@ -227,14 +227,14 @@ function App() {
                   <li><a href="#faq">Sıkça Sorulan Sorular <IconArrow size={12} /></a></li>
                   <li><a href="my-bookings.html">Rezervasyon iptal & değişiklik <IconArrow size={12} /></a></li>
                   <li><a href="about.html">Hakkımızda <IconArrow size={12} /></a></li>
-                  <li><a href="#">Otel ortaklığı başvurusu <IconArrow size={12} /></a></li>
+                  <li><a href="mailto:partnership@bakoda.com">Otel ortaklığı başvurusu <IconArrow size={12} /></a></li>
                 </ul>
 
                 <div className="info-social">
-                  <a href="#" aria-label="Instagram"><IconInstagram size={15} /></a>
-                  <a href="#" aria-label="Facebook"><IconFb size={15} /></a>
-                  <a href="#" aria-label="X"><IconX size={13} /></a>
-                  <a href="#" aria-label="YouTube"><IconYoutube size={15} /></a>
+                  <a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram"><IconInstagram size={15} /></a>
+                  <a href="https://facebook.com" target="_blank" rel="noreferrer" aria-label="Facebook"><IconFb size={15} /></a>
+                  <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="X"><IconX size={13} /></a>
+                  <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube"><IconYoutube size={15} /></a>
                 </div>
               </div>
             </aside>
@@ -254,7 +254,7 @@ function App() {
               ))}
             </div>
             <div style={{ textAlign:"center", marginTop: 28, color:"var(--muted)", fontSize: 14 }}>
-              Aradığınızı bulamadınız mı? <a href="#" style={{ color:"var(--primary)", textDecoration:"underline", textDecorationColor:"rgba(15,42,42,.25)", textUnderlineOffset: 3 }}>Yardım merkezimize bakın</a> veya yukarıdaki formu doldurun.
+              Aradığınızı bulamadınız mı? <a href="mailto:support@bakoda.com" style={{ color:"var(--primary)", textDecoration:"underline", textDecorationColor:"rgba(15,42,42,.25)", textUnderlineOffset: 3 }}>Yardım merkezimize bakın</a> veya yukarıdaki formu doldurun.
             </div>
           </div>
         </section>

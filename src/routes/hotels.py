@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
-from src.schemas import HotelDetailOut, HotelOut
+from src.models import User
+from src.schemas import HotelDetailOut, HotelOut, ReviewCreate, ReviewOut
 from src.services import hotel_service
+from src.services.auth_service import get_current_user
 
 router = APIRouter(prefix="/hotels", tags=["hotels"])
 
@@ -13,6 +15,7 @@ router = APIRouter(prefix="/hotels", tags=["hotels"])
 @router.get("", response_model=dict)
 async def list_hotels(
     city: str | None = Query(default=None),
+    location: str | None = Query(default=None),
     check_in: date | None = Query(default=None),
     check_out: date | None = Query(default=None),
     guests: int | None = Query(default=None),
@@ -26,8 +29,10 @@ async def list_hotels(
     if check_in and check_out and check_out <= check_in:
         raise HTTPException(status_code=400, detail="check_out must be after check_in")
 
+    location_query = (location if location is not None else city)
+
     hotels, total = await hotel_service.search_hotels(
-        db, city=city, check_in=check_in, check_out=check_out,
+        db, city=location_query, check_in=check_in, check_out=check_out,
         guests=guests, price_min=price_min, price_max=price_max,
         stars=stars, sort=sort, page=page,
     )
@@ -44,3 +49,25 @@ async def get_hotel(hotel_id: int, db: AsyncSession = Depends(get_db)):
     if not hotel:
         raise HTTPException(status_code=404, detail="Otel bulunamadı")
     return HotelDetailOut.model_validate(hotel)
+
+
+@router.post("/{hotel_id}/reviews", response_model=ReviewOut, status_code=201)
+async def create_hotel_review(
+    hotel_id: int,
+    payload: ReviewCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    reviewer_name = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
+    review = await hotel_service.create_hotel_review(
+        db=db,
+        hotel_id=hotel_id,
+        reviewer_name=reviewer_name,
+        country=current_user.country,
+        rating=payload.rating,
+        title=payload.title,
+        text=payload.text,
+    )
+    if not review:
+        raise HTTPException(status_code=404, detail="Otel bulunamadı")
+    return ReviewOut.model_validate(review)

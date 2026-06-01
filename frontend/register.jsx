@@ -177,7 +177,7 @@ function App() {
                     <input id="firstName" type="text" autoComplete="given-name"
                            className={`input ${errors.firstName ? "err":""}`}
                            value={firstName} onChange={(e) => { setFirstName(e.target.value); clearErr("firstName"); }}
-                           placeholder="Selin" />
+                           placeholder="Adınız" />
                   </div>
                   {errors.firstName && <span className="err-msg"><IconX size={11} /> {errors.firstName}</span>}
                 </div>
@@ -186,7 +186,7 @@ function App() {
                   <input id="lastName" type="text" autoComplete="family-name"
                          className={`input no-affix ${errors.lastName ? "err":""}`}
                          value={lastName} onChange={(e) => { setLastName(e.target.value); clearErr("lastName"); }}
-                         placeholder="Karaca" />
+                         placeholder="Soyadınız" />
                   {errors.lastName && <span className="err-msg"><IconX size={11} /> {errors.lastName}</span>}
                 </div>
               </div>
@@ -252,7 +252,7 @@ function App() {
                 <input type="checkbox" checked={terms} onChange={(e) => { setTerms(e.target.checked); clearErr("terms"); }} />
                 <span className="box"><Tick /></span>
                 <span>
-                  <a href="#">Kullanım Şartları</a> ve <a href="#">Gizlilik Politikası</a>'nı okudum, kabul ediyorum.
+                  <a href="about.html">Kullanım Şartları</a> ve <a href="about.html">Gizlilik Politikası</a>'nı okudum, kabul ediyorum.
                 </span>
               </label>
               {errors.terms && <span className="err-msg" style={{ marginTop: -14, marginBottom: 14, display:"block" }}><IconX size={11} /> {errors.terms}</span>}

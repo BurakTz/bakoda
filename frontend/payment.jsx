@@ -1,16 +1,115 @@
 // Payment page — Step 2 of booking flow
 
 const { useState, useRef, useEffect, useMemo } = React;
+const PAYMENT_I18N = {
+  tr: {
+    step: { step: "Adım", info: "Bilgiler", payment: "Ödeme", confirm: "Onay" },
+    nav: { home: "Anasayfa", info: "Bilgiler", payment: "Ödeme" },
+    payment: { title: "Ödeme", lead: "Rezervasyonunuz hemen onaylanır. Ücret konaklama tarihinden bir gün önce kartınızdan çekilir; o zamana kadar dilediğiniz an iptal edebilirsiniz.", complete: "Rezervasyonu Tamamla" },
+    toast: { signupRedirect: "Kayıt sayfasına yönlendiriliyorsunuz…" },
+  },
+  en: {
+    step: { step: "Step", info: "Info", payment: "Payment", confirm: "Confirmation" },
+    nav: { home: "Home", info: "Info", payment: "Payment" },
+    payment: { title: "Payment", lead: "Your booking is confirmed immediately.", complete: "Complete Booking" },
+    toast: { signupRedirect: "Redirecting to sign up…" },
+  },
+};
 
-// Booking verisi sessionStorage'dan ve API'dan gelecek — başlangıç değerleri
-const _parseDate = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d; };
-const _t0 = new Date(); _t0.setHours(0,0,0,0);
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const BOOKING_CTX_KEY = "bakoda_booking_context";
+const parseDate = (s) => {
+  const txt = String(s || "").trim();
+  if (!ISO_DATE_RE.test(txt)) return null;
+  const d = new Date(`${txt}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const parsePositiveInt = (v, fallback = 0) => {
+  const n = Number.parseInt(String(v ?? ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+const toIsoDate = (d) => (d instanceof Date && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "");
+function readStoredBookingContext() {
+  try {
+    const raw = sessionStorage.getItem(BOOKING_CTX_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch {
+    return {};
+  }
+}
+function resolveContext() {
+  const qs = new URLSearchParams(window.location.search);
+  const stored = readStoredBookingContext();
+  const bookingId = parsePositiveInt(qs.get("booking_id") || sessionStorage.getItem("bakoda_booking_id"), 0);
+  const hotelId = parsePositiveInt(qs.get("hotel_id") || sessionStorage.getItem("bakoda_hotel_id") || stored.hotelId, 0);
+  const roomId = parsePositiveInt(qs.get("room_id") || sessionStorage.getItem("bakoda_room_id") || stored.roomId, 0);
+  const checkIn = parseDate(qs.get("check_in") || sessionStorage.getItem("bakoda_checkin") || stored.checkIn);
+  const checkOut = parseDate(qs.get("check_out") || sessionStorage.getItem("bakoda_checkout") || stored.checkOut);
+  const adults = parsePositiveInt(qs.get("adults") || qs.get("guests") || sessionStorage.getItem("bakoda_adults") || stored.adults, 2);
+  const rooms = parsePositiveInt(qs.get("rooms") || sessionStorage.getItem("bakoda_rooms") || stored.rooms, 1);
+
+  const errors = [];
+  if (!bookingId) errors.push("Rezervasyon kaydı bulunamadı.");
+  if (!hotelId) errors.push("Otel bilgisi eksik.");
+  if (!roomId) errors.push("Oda bilgisi eksik.");
+  if (!checkIn || !checkOut || checkOut <= checkIn) errors.push("Tarih bilgisi geçersiz.");
+
+  return { bookingId, hotelId, roomId, checkIn, checkOut, adults, rooms, valid: errors.length === 0, errors };
+}
+function persistContext(ctx) {
+  try {
+    sessionStorage.setItem(BOOKING_CTX_KEY, JSON.stringify({
+      hotelId: ctx.hotelId,
+      roomId: ctx.roomId,
+      checkIn: toIsoDate(ctx.checkIn),
+      checkOut: toIsoDate(ctx.checkOut),
+      adults: ctx.adults,
+      rooms: ctx.rooms,
+    }));
+    sessionStorage.setItem("bakoda_booking_id", String(ctx.bookingId));
+    sessionStorage.setItem("bakoda_hotel_id", String(ctx.hotelId));
+    sessionStorage.setItem("bakoda_room_id", String(ctx.roomId));
+    sessionStorage.setItem("bakoda_checkin", toIsoDate(ctx.checkIn));
+    sessionStorage.setItem("bakoda_checkout", toIsoDate(ctx.checkOut));
+    sessionStorage.setItem("bakoda_adults", String(ctx.adults));
+    sessionStorage.setItem("bakoda_rooms", String(ctx.rooms));
+  } catch {}
+}
 
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
 const fmtDateShort = (d) => {
   const m = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
   return `${d.getDate()} ${m[d.getMonth()]}`;
 };
+const DEFAULT_PROFILE_ADDR = {
+  name: "Misafir",
+  street: "Adres bilgisi yok",
+  district: "—",
+  city: "İstanbul",
+  zip: "34000",
+  country: "Türkiye",
+};
+function getProfileAddress() {
+  const stored = localStorage.getItem("bakoda_billing_address");
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return { ...DEFAULT_PROFILE_ADDR, ...parsed };
+    } catch {}
+  }
+  const userRaw = localStorage.getItem("bakoda_user");
+  if (userRaw) {
+    try {
+      const user = JSON.parse(userRaw);
+      return {
+        ...DEFAULT_PROFILE_ADDR,
+        name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || DEFAULT_PROFILE_ADDR.name,
+      };
+    } catch {}
+  }
+  return DEFAULT_PROFILE_ADDR;
+}
 
 function calcPricing(bk) {
   const nights = bk.checkIn && bk.checkOut ? Math.round((bk.checkOut - bk.checkIn) / 86400000) : 1;
@@ -53,10 +152,11 @@ const BrandAmex = () => (
 
 // ── Stepper ───────────────────────────────────────────────────────────
 function Stepper({ step }) {
+  const { t } = useI18n(PAYMENT_I18N);
   const items = [
-    { n: 1, lbl: "Adım 01", ttl: "Bilgiler" },
-    { n: 2, lbl: "Adım 02", ttl: "Ödeme" },
-    { n: 3, lbl: "Adım 03", ttl: "Onay" },
+    { n: 1, lbl: `${t("step.step")} 01`, ttl: t("step.info") },
+    { n: 2, lbl: `${t("step.step")} 02`, ttl: t("step.payment") },
+    { n: 3, lbl: `${t("step.step")} 03`, ttl: t("step.confirm") },
   ];
   return (
     <div className="stepper-wrap">
@@ -168,7 +268,8 @@ const Tick = () => (
 );
 
 // ── Form ──────────────────────────────────────────────────────────────
-function PaymentForm({ onConfirm }) {
+function PaymentForm({ onConfirm, profileAddr, backHref, disabled, submitting, submitError }) {
+  const { t } = useI18n(PAYMENT_I18N);
   const [card, setCard]   = useState("");
   const [name, setName]   = useState("");
   const [exp, setExp]     = useState("");
@@ -212,13 +313,13 @@ function PaymentForm({ onConfirm }) {
 
   const submit = (ev) => {
     ev.preventDefault();
-    if (validate()) onConfirm({ brand, last4: card.replace(/\s/g,"").slice(-4) });
+    if (validate() && !disabled && !submitting) onConfirm({ brand, last4: card.replace(/\s/g,"").slice(-4) });
   };
 
   return (
     <form className="form-card fade-in" onSubmit={submit} noValidate>
-      <h1>Ödeme</h1>
-      <p className="lead">Rezervasyonunuz hemen onaylanır. Ücret konaklama tarihinden bir gün önce kartınızdan çekilir; o zamana kadar dilediğiniz an iptal edebilirsiniz.</p>
+      <h1>{t("payment.title")}</h1>
+      <p className="lead">{t("payment.lead")}</p>
 
       {/* ── Card section ── */}
       <div className="form-section-title">Kart Bilgileri</div>
@@ -244,7 +345,7 @@ function PaymentForm({ onConfirm }) {
           <label htmlFor="cname">Kart Üzerindeki İsim <span className="req">*</span></label>
           <input id="cname" className={`input ${errors.name?"err":""}`} type="text" autoComplete="cc-name"
                  value={name} onChange={(e) => setName(e.target.value.toUpperCase())}
-                 placeholder="SELIN KARACA" style={{ letterSpacing:".04em" }} />
+                 placeholder="KART SAHIBI" style={{ letterSpacing:".04em" }} />
           {errors.name && <span className="err-msg"><IconX size={11} /> {errors.name}</span>}
         </div>
 
@@ -294,8 +395,8 @@ function PaymentForm({ onConfirm }) {
         <div className="saved-addr">
           <div className="ico"><IconMapPin size={15} /></div>
           <div style={{ minWidth: 0 }}>
-            <div className="who">{PROFILE_ADDR.name}</div>
-            <div className="meta">{PROFILE_ADDR.street} · {PROFILE_ADDR.district} · {PROFILE_ADDR.city} {PROFILE_ADDR.zip} · {PROFILE_ADDR.country}</div>
+            <div className="who">{profileAddr.name}</div>
+            <div className="meta">{profileAddr.street} · {profileAddr.district} · {profileAddr.city} {profileAddr.zip} · {profileAddr.country}</div>
           </div>
         </div>
       )}
@@ -336,9 +437,12 @@ function PaymentForm({ onConfirm }) {
       </div>
 
       <div className="submit-row">
-        <a href="booking.html" className="back btn btn-ghost" style={{ height: "auto", padding: "6px 8px" }}>← Bilgilere dön</a>
-        <button type="submit" className="btn btn-cta next">Rezervasyonu Tamamla <IconArrow size={16} /></button>
+        <a href={backHref} className="back btn btn-ghost" style={{ height: "auto", padding: "6px 8px" }}>← Bilgilere dön</a>
+        <button type="submit" className="btn btn-cta next" disabled={disabled || submitting}>
+          {submitting ? "İşleniyor..." : t("payment.complete")} <IconArrow size={16} />
+        </button>
       </div>
+      {submitError && <span className="err-msg"><IconX size={11} /> {submitError}</span>}
 
       <div className="trust-strip">
         <IconShield size={14} /> 256-bit SSL şifreli güvenli ödeme · PCI DSS uyumlu işlem
@@ -348,53 +452,98 @@ function PaymentForm({ onConfirm }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────
+function ErrorCard({ title, message, onRetry }) {
+  return (
+    <div className="form-card fade-in">
+      <h1 style={{ marginBottom: 8 }}>{title}</h1>
+      <p className="lead" style={{ marginBottom: 16 }}>{message}</p>
+      <div className="submit-row" style={{ marginTop: 0 }}>
+        <button className="btn btn-primary" type="button" onClick={onRetry}>Tekrar Dene</button>
+        <a className="btn btn-secondary" href="search-results.html">Yeni arama yap</a>
+      </div>
+    </div>
+  );
+}
+
 function App() {
+  const { t } = useI18n(PAYMENT_I18N);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
+  const [context, setContext] = useState(() => resolveContext());
+  const [status, setStatus] = useState("loading");
+  const [loadError, setLoadError] = useState("");
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [bk, setBk] = useState({
     hotel: "", district: "", roomType: "", stars: 5, thumbnail: null,
-    checkIn: null, checkOut: null, adults: 2, rooms: 1,
+    checkIn: null, checkOut: null,
+    adults: 2, rooms: 1,
     pricePerNight: 0, apiTotal: 0,
   });
+  const profileAddr = getProfileAddress();
 
   useEffect(() => {
-    const bookingId = sessionStorage.getItem("bakoda_booking_id");
-    const hotelId   = sessionStorage.getItem("bakoda_hotel_id");
-    const roomId    = parseInt(sessionStorage.getItem("bakoda_room_id") || "0");
-
-    if (bookingId) {
-      fetch(`/api/bookings/${bookingId}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.id) setBk(prev => ({
-            ...prev,
-            checkIn:  _parseDate(d.check_in),
-            checkOut: _parseDate(d.check_out),
-            adults: d.guests || 2,
-            rooms: d.rooms_count || 1,
-            apiTotal: d.total_price || 0,
-          }));
-        }).catch(() => {});
+    if (!context.valid) {
+      setStatus("error");
+      setLoadError(context.errors.join(" "));
+      return;
     }
 
-    if (hotelId) {
-      fetch(`/api/hotels/${hotelId}`)
-        .then(r => r.json())
-        .then(d => {
-          if (!d.id) return;
-          const room = (d.rooms || []).find(r => r.id === roomId) || d.rooms?.[0];
-          setBk(prev => ({
-            ...prev,
-            hotel:        d.name,
-            district:     `${d.city}${d.district ? ", " + d.district : ""}`,
-            stars:        d.stars,
-            thumbnail:    d.thumbnail || null,
-            roomType:     room ? (room.name || room.type) : "",
-            pricePerNight: room ? room.price_per_night : (d.price_per_night || 0),
-          }));
-        }).catch(() => {});
-    }
-  }, []);
+    const controller = new AbortController();
+    setStatus("loading");
+    setLoadError("");
+    persistContext(context);
+
+    Promise.all([
+      fetch(`/api/bookings/${context.bookingId}`, { signal: controller.signal }).then(async (r) => {
+        let body = null;
+        try { body = await r.json(); } catch {}
+        if (!r.ok) throw new Error(body?.detail || "Rezervasyon bulunamadı.");
+        return body;
+      }),
+      fetch(`/api/hotels/${context.hotelId}`, { signal: controller.signal }).then(async (r) => {
+        let body = null;
+        try { body = await r.json(); } catch {}
+        if (!r.ok) throw new Error(body?.detail || "Otel bilgisi alınamadı.");
+        return body;
+      }),
+    ])
+      .then(([booking, hotel]) => {
+        const room = (hotel.rooms || []).find((r) => r.id === context.roomId) || hotel.rooms?.[0];
+        const resolved = {
+          ...context,
+          roomId: room?.id || context.roomId,
+          checkIn: parseDate(booking.check_in) || context.checkIn,
+          checkOut: parseDate(booking.check_out) || context.checkOut,
+          adults: parsePositiveInt(booking.guests, context.adults),
+          rooms: parsePositiveInt(booking.rooms_count, context.rooms),
+        };
+        setContext(resolved);
+        persistContext({ ...resolved, bookingId: context.bookingId });
+        setBk({
+          hotel: hotel.name || "Otel",
+          district: `${hotel.city || ""}${hotel.district ? ", " + hotel.district : ""}`.trim() || "—",
+          roomType: room ? (room.name || room.type || "") : "",
+          stars: Number.isFinite(hotel.stars) ? hotel.stars : 5,
+          thumbnail: hotel.thumbnail || null,
+          checkIn: resolved.checkIn,
+          checkOut: resolved.checkOut,
+          adults: resolved.adults,
+          rooms: resolved.rooms,
+          pricePerNight: Number(room ? room.price_per_night : (hotel.price_per_night || 0)),
+          apiTotal: Number(booking.total_price || 0),
+        });
+        setStatus("ready");
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setStatus("error");
+        setLoadError(err?.message || "Ödeme bilgileri yüklenemedi.");
+      });
+
+    return () => controller.abort();
+  }, [context.valid, context.bookingId, context.hotelId, context.roomId, refreshTick]);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -403,34 +552,54 @@ function App() {
   };
 
   const confirm = async (info) => {
+    if (!context.valid || status !== "ready") return;
     flash(`Ödeme işleniyor · ${info.brand?.toUpperCase() || "Kart"} •••• ${info.last4}`);
-    const bookingId = sessionStorage.getItem("bakoda_booking_id");
+    setSubmitting(true);
+    setSubmitError("");
+    const pricing = calcPricing(bk);
     try {
-      await fetch("/api/payments", {
+      const paymentRes = await fetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ booking_id: bookingId ? Number(bookingId) : null, payment_method: "card" }),
+        body: JSON.stringify({
+          booking_id: context.bookingId,
+          payment_method: "card",
+          total: bk.apiTotal || pricing.total,
+        }),
       });
-    } catch {}
-    setTimeout(() => { window.location.href = "confirmation.html"; }, 900);
+      let payload = null;
+      try { payload = await paymentRes.json(); } catch {}
+      if (!paymentRes.ok) throw new Error(payload?.detail || "Ödeme işlemi başarısız.");
+
+      sessionStorage.setItem("bakoda_payment_method", info.brand ? `Kart (${info.brand.toUpperCase()})` : "Kart");
+      sessionStorage.setItem("bakoda_payment_last4", info.last4 || "****");
+      if (payload?.transaction_id) sessionStorage.setItem("bakoda_payment_txn", payload.transaction_id);
+      setTimeout(() => { window.location.href = `confirmation.html?booking_id=${context.bookingId}`; }, 900);
+    } catch (err) {
+      setSubmitError(err?.message || "Ödeme işlemi tamamlanamadı.");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const bookingHref = `booking.html?hotel_id=${context.hotelId}&room_id=${context.roomId}&check_in=${toIsoDate(context.checkIn)}&check_out=${toIsoDate(context.checkOut)}&adults=${context.adults}&rooms=${context.rooms}`;
 
   return (
     <>
-      <Navbar active="Oteller" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
+      <Navbar active="nav.hotels" onSignup={() => flash(t("toast.signupRedirect"))} />
 
       <div className="page">
         <div className="crumbs">
           <div className="container crumbs-inner">
-            <a href="index.html">Anasayfa</a>
+            <a href="index.html">{t("nav.home")}</a>
             <span className="sep">/</span>
-            <a href={"hotel-detail.html" + (sessionStorage.getItem("bakoda_hotel_id") ? "?id=" + sessionStorage.getItem("bakoda_hotel_id") : "")}>
+            <a href={"hotel-detail.html" + (context.hotelId ? `?id=${context.hotelId}` : "")}>
               {bk.hotel || "Otel"}
             </a>
             <span className="sep">/</span>
-            <a href="booking.html">Bilgiler</a>
+            <a href={bookingHref}>{t("nav.info")}</a>
             <span className="sep">/</span>
-            <span className="here">Ödeme</span>
+            <span className="here">{t("nav.payment")}</span>
           </div>
         </div>
 
@@ -438,7 +607,27 @@ function App() {
 
         <div className="container">
           <div className="book-layout">
-            <PaymentForm onConfirm={confirm} />
+            {status === "error" ? (
+              <ErrorCard
+                title="Ödeme adımı açılamadı"
+                message={loadError || "Rezervasyon bilgisi eksik veya geçersiz."}
+                onRetry={() => setRefreshTick((x) => x + 1)}
+              />
+            ) : status === "loading" ? (
+              <div className="form-card fade-in">
+                <h1 style={{ marginBottom: 8 }}>Ödeme hazırlanıyor</h1>
+                <p className="lead">Rezervasyon ve otel bilgileri yükleniyor…</p>
+              </div>
+            ) : (
+              <PaymentForm
+                onConfirm={confirm}
+                profileAddr={profileAddr}
+                backHref={bookingHref}
+                disabled={!context.valid}
+                submitting={submitting}
+                submitError={submitError}
+              />
+            )}
             <Summary bk={bk} />
           </div>
         </div>

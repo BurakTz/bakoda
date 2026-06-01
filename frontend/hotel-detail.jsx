@@ -1,9 +1,59 @@
 // Hotel detail — Çırağan Palace Suites
 
 const { useState, useEffect, useRef } = React;
-
-// API verisi gelene kadar gösterilecek skeleton / placeholder
-const LOADING_HOTEL = null;
+const HOTEL_DETAIL_FALLBACK_TITLE = "Otel Detayı — bakoda";
+const DETAIL_I18N = {
+  tr: {
+    common: {
+      loading: "Otel bilgileri yükleniyor…",
+      loadFailed: "Otel bilgisi yüklenemedi",
+      retry: "Tekrar Dene",
+      backToSearch: "Aramaya Dön",
+      home: "Anasayfa",
+      hotels: "Oteller",
+      share: "Paylaş",
+      removedFav: "Favorilerden çıkarıldı",
+      addedFav: "Favorilere eklendi",
+      saved: "Kaydedildi",
+      save: "Kaydet",
+      guestFavorite: "Misafir Favorisi",
+      showOnMap: "Haritada göster",
+      reviews: "değerlendirme",
+      loadingErrorDefault: "Lütfen daha sonra tekrar deneyin.",
+    },
+    tabs: {
+      overview: "Genel Bakış",
+      rooms: "Odalar",
+      amenities: "Olanaklar",
+      reviews: "Yorumlar",
+    },
+  },
+  en: {
+    common: {
+      loading: "Loading hotel details…",
+      loadFailed: "Failed to load hotel details",
+      retry: "Retry",
+      backToSearch: "Back to search",
+      home: "Home",
+      hotels: "Hotels",
+      share: "Share",
+      removedFav: "Removed from favorites",
+      addedFav: "Added to favorites",
+      saved: "Saved",
+      save: "Save",
+      guestFavorite: "Guest Favorite",
+      showOnMap: "Show on map",
+      reviews: "reviews",
+      loadingErrorDefault: "Please try again later.",
+    },
+    tabs: {
+      overview: "Overview",
+      rooms: "Rooms",
+      amenities: "Amenities",
+      reviews: "Reviews",
+    },
+  },
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
@@ -106,14 +156,8 @@ function Lightbox({ hotel, idx, onClose, onNav }) {
 }
 
 // ── Tabs / panels ─────────────────────────────────────────────────────
-const TABS = [
-  { id: "overview",   label: "Genel Bakış" },
-  { id: "rooms",      label: "Odalar" },
-  { id: "amenities",  label: "Olanaklar" },
-  { id: "reviews",    label: "Yorumlar" },
-];
-
 function OverviewPanel({ hotel, go }) {
+  const { t } = useI18n(DETAIL_I18N);
   return (
     <>
       <div className="panel" id="overview">
@@ -149,14 +193,14 @@ function OverviewPanel({ hotel, go }) {
         <h2>Misafir yorumları</h2>
         <div className="reviews-summary">
           <div>
-            <div className="big">{hotel.rating.toFixed(1)}<small>{hotel.verdict} · {new Intl.NumberFormat("tr-TR").format(hotel.reviews)} yorum</small></div>
+            <div className="big">{hotel.rating.toFixed(1)}/10<small>{hotel.verdict} · {new Intl.NumberFormat("tr-TR").format(hotel.reviews)} yorum</small></div>
           </div>
           <div className="review-bars">
             {hotel.ratingBars.map(b => (
               <div className="review-bar" key={b.label}>
                 <div className="label">{b.label}</div>
                 <div className="track"><div className="fill" style={{ width: (b.value/10)*100 + "%" }} /></div>
-                <div className="num">{b.value.toFixed(1)}</div>
+                <div className="num">{b.value.toFixed(1)}/10</div>
               </div>
             ))}
           </div>
@@ -165,7 +209,7 @@ function OverviewPanel({ hotel, go }) {
           {hotel.reviewList.slice(0, 2).map(rv => <ReviewCard rv={rv} key={rv.name} />)}
         </div>
         <div style={{ marginTop: 20 }}>
-          <button className="btn btn-secondary" onClick={() => go("reviews")}>Tüm {new Intl.NumberFormat("tr-TR").format(hotel.reviews)} yorumu gör <IconArrow size={14} /></button>
+          <button className="btn btn-secondary" onClick={() => go("reviews")}>{t("tabs.reviews", "Yorumlar")} · {new Intl.NumberFormat("tr-TR").format(hotel.reviews)} <IconArrow size={14} /></button>
         </div>
       </div>
     </>
@@ -247,7 +291,7 @@ function ReviewCard({ rv }) {
             <div className="when">{rv.country} · {rv.when}</div>
           </div>
         </div>
-        <div className="pill">{rv.rating.toFixed(1)}</div>
+        <div className="pill">{rv.rating.toFixed(1)}/10</div>
       </div>
       <div className="review-title">{rv.title}</div>
       <div className="review-text">"{rv.text}"</div>
@@ -255,26 +299,116 @@ function ReviewCard({ rv }) {
   );
 }
 
-function ReviewsPanel({ hotel }) {
+function ReviewsPanel({ hotel, onSubmitReview }) {
+  const [rating, setRating] = useState(10);
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const isAuthenticated = !!localStorage.getItem("bakoda_token");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      setFormError("Yorum eklemek için önce giriş yapmalısınız.");
+      return;
+    }
+    if (!text.trim()) {
+      setFormError("Yorum metni boş olamaz.");
+      return;
+    }
+    setFormError("");
+    setSubmitting(true);
+    const result = await onSubmitReview({
+      rating,
+      title: title.trim(),
+      text: text.trim(),
+    });
+    setSubmitting(false);
+    if (!result.ok) {
+      setFormError(result.error || "Yorum gönderilemedi.");
+      return;
+    }
+    setRating(10);
+    setTitle("");
+    setText("");
+  };
+
   return (
     <div className="panel" id="reviews">
       <h2>Tüm yorumlar ({new Intl.NumberFormat("tr-TR").format(hotel.reviews)})</h2>
       <div className="reviews-summary">
         <div>
-          <div className="big">{hotel.rating.toFixed(1)}<small>{hotel.verdict}</small></div>
+          <div className="big">{hotel.rating.toFixed(1)}/10<small>{hotel.verdict}</small></div>
         </div>
         <div className="review-bars">
           {hotel.ratingBars.map(b => (
             <div className="review-bar" key={b.label}>
               <div className="label">{b.label}</div>
               <div className="track"><div className="fill" style={{ width: (b.value/10)*100 + "%" }} /></div>
-              <div className="num">{b.value.toFixed(1)}</div>
+              <div className="num">{b.value.toFixed(1)}/10</div>
             </div>
           ))}
         </div>
       </div>
+
+      <form
+        onSubmit={submit}
+        style={{ marginBottom:24, padding:18, border:"1px solid var(--line)", borderRadius:12, background:"#fff", display:"grid", gap:10 }}
+      >
+        <h3 style={{ margin:0, fontSize:18, fontFamily:"var(--display)", color:"var(--primary)" }}>Yorum ekle</h3>
+        {!isAuthenticated && (
+          <div style={{ fontSize:13, color:"var(--muted)" }}>
+            Yorum göndermek için <a href="login.html" style={{ color:"var(--primary)", textDecoration:"underline" }}>giriş yapın</a>.
+          </div>
+        )}
+        <div style={{ display:"grid", gridTemplateColumns:"140px 1fr", gap:10, alignItems:"center" }}>
+          <label htmlFor="review-rating" style={{ fontSize:13, color:"var(--muted)" }}>Puan (1-10)</label>
+          <input
+            id="review-rating"
+            type="number"
+            min="1"
+            max="10"
+            step="0.1"
+            value={rating}
+            onChange={(e) => setRating(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+            disabled={!isAuthenticated || submitting}
+            style={{ height:38, border:"1px solid var(--line)", borderRadius:8, padding:"0 10px" }}
+          />
+        </div>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={!isAuthenticated || submitting}
+          placeholder="Başlık (opsiyonel)"
+          style={{ height:38, border:"1px solid var(--line)", borderRadius:8, padding:"0 10px" }}
+        />
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={!isAuthenticated || submitting}
+          rows={4}
+          placeholder="Deneyiminizi paylaşın"
+          style={{ border:"1px solid var(--line)", borderRadius:8, padding:"10px", resize:"vertical", fontFamily:"var(--body)" }}
+        />
+        {formError && <div style={{ color:"var(--error)", fontSize:13 }}>{formError}</div>}
+        <div style={{ display:"flex", justifyContent:"flex-end" }}>
+          <button className="btn btn-primary" type="submit" disabled={!isAuthenticated || submitting}>
+            {submitting ? "Gönderiliyor..." : "Yorumu Gönder"}
+          </button>
+        </div>
+      </form>
+
       <div className="review-list">
-        {hotel.reviewList.map(rv => <ReviewCard rv={rv} key={rv.name} />)}
+        {hotel.reviewList.length > 0 ? (
+          hotel.reviewList.map((rv, idx) => <ReviewCard rv={rv} key={`${rv.name}-${rv.when}-${idx}`} />)
+        ) : (
+          <div style={{ gridColumn:"1 / -1", background:"#fff", border:"1px solid var(--line)", borderRadius:12, padding:16, color:"var(--muted)" }}>
+            Bu otel için henüz yorum bulunmuyor.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -380,6 +514,12 @@ function BookingPanel({ hotel, onBook }) {
         const roomId = hotel.rooms[0]?.id || "";
         const ci = checkIn.toISOString().split("T")[0];
         const co = checkOut.toISOString().split("T")[0];
+        sessionStorage.setItem("bakoda_hotel_id", String(hotel.id));
+        sessionStorage.setItem("bakoda_room_id", String(roomId));
+        sessionStorage.setItem("bakoda_checkin", ci);
+        sessionStorage.setItem("bakoda_checkout", co);
+        sessionStorage.setItem("bakoda_adults", String(adults));
+        sessionStorage.setItem("bakoda_rooms", String(rooms));
         window.location.href = `booking.html?room_id=${roomId}&hotel_id=${hotel.id}&check_in=${ci}&check_out=${co}&adults=${adults}&rooms=${rooms}`;
       }}>
         Rezervasyonu Tamamla <IconArrow size={16} />
@@ -411,16 +551,28 @@ function Step({ label, sub, val, min=0, max=12, onChange }) {
 }
 
 // ── API verisi → component'lerin beklediği formata dönüştür ───────────
+function mapReview(rv) {
+  return {
+    name: rv.reviewer_name,
+    country: rv.country || "",
+    when: new Date(rv.created_at || Date.now()).toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
+    rating: parseFloat(Number(rv.rating || 0).toFixed(1)),
+    title: rv.title || "",
+    text: rv.text,
+  };
+}
+
 function transformHotel(data) {
   const r = data.rating || 0;
+  const reviewsCount = data.reviews_count || 0;
   return {
     id: data.id,
     name: data.name,
     stars: data.stars,
     district: `${data.city}${data.district ? ", " + data.district : ""}`,
-    rating: parseFloat((r * 2).toFixed(1)),
-    verdict: r >= 4.5 ? "Mükemmel" : r >= 4.0 ? "Çok İyi" : "İyi",
-    reviews: data.reviews_count,
+    rating: parseFloat(Number(r).toFixed(1)),
+    verdict: reviewsCount === 0 ? "Henüz puan yok" : r >= 9.0 ? "Mükemmel" : r >= 8.0 ? "Çok İyi" : "İyi",
+    reviews: reviewsCount,
     pricePerNight: data.price_per_night,
     description: data.description || "",
     meta: [
@@ -438,44 +590,92 @@ function transformHotel(data) {
       price: rm.price_per_night,
     })),
     ratingBars: [
-      { label: "Personel",   value: parseFloat((r * 2 * 0.98).toFixed(1)) },
-      { label: "Temizlik",   value: parseFloat((r * 2 * 0.97).toFixed(1)) },
-      { label: "Konfor",     value: parseFloat((r * 2).toFixed(1)) },
-      { label: "Konum",      value: parseFloat((r * 2 * 1.01).toFixed(1)) },
+      { label: "Genel Puan", value: parseFloat(Number(r).toFixed(1)) },
     ],
-    reviewList: (data.reviews || []).map(rv => ({
-      name: rv.reviewer_name,
-      country: rv.country || "",
-      when: new Date(rv.created_at || Date.now()).toLocaleDateString("tr-TR", { month: "long", year: "numeric" }),
-      rating: parseFloat((rv.rating * 2).toFixed(1)),
-      title: rv.title || "",
-      text: rv.text,
-    })),
+    reviewList: [...(data.reviews || [])]
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .map(mapReview),
   };
 }
 
 // ── App ───────────────────────────────────────────────────────────────
 function App() {
-  const [hotel, setHotel] = useState(null);   // null = yükleniyor
+  const { t, lang } = useI18n(DETAIL_I18N);
+  const [hotel, setHotel] = useState(null);
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [loadError, setLoadError] = useState("");
+  const [retryTick, setRetryTick] = useState(0);
   const [tab, setTab]     = useState("overview");
   const [fav, setFav]     = useState(false);
   const [lightIdx, setLightIdx] = useState(null);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
 
-  const hotelId = new URLSearchParams(window.location.search).get("id") || "1";
+  const qs = new URLSearchParams(window.location.search);
+  const rawHotelId = (qs.get("id") || qs.get("hotel_id") || sessionStorage.getItem("bakoda_hotel_id") || "").trim();
+  const isHotelIdValid = /^[1-9]\d*$/.test(rawHotelId);
+  const hotelId = isHotelIdValid ? Number(rawHotelId) : NaN;
+
+  const fetchHotelDetail = async (targetHotelId, signal) => {
+    const r = await fetch(`/api/hotels/${targetHotelId}`, { signal });
+    let payload = null;
+    try { payload = await r.json(); } catch {}
+    if (!r.ok) {
+      const detail = payload && typeof payload.detail === "string" ? payload.detail : "";
+      throw new Error(detail || "Otel bilgileri alınamadı.");
+    }
+    return payload;
+  };
 
   useEffect(() => {
+    if (status === "ready" && hotel?.name) {
+      document.title = `${hotel.name} — bakoda`;
+      return;
+    }
+    document.title = HOTEL_DETAIL_FALLBACK_TITLE;
+  }, [hotel?.name, hotelId, status]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let isMounted = true;
+
+    const fail = (msg) => {
+      if (!isMounted) return;
+      setHotel(null);
+      setStatus("error");
+      setLoadError(msg);
+    };
+
+    if (!isHotelIdValid) {
+      fail("Geçersiz otel bağlantısı. Lütfen sonuç listesinden tekrar deneyin.");
+      return () => {
+        isMounted = false;
+        controller.abort();
+      };
+    }
+
+    setStatus("loading");
+    setLoadError("");
     setHotel(null);
-    fetch(`/api/hotels/${hotelId}`)
-      .then(r => r.json())
-      .then(data => {
-        if (!data.id) return;
-        sessionStorage.setItem("bakoda_hotel_id", data.id);
+
+    fetchHotelDetail(hotelId, controller.signal)
+      .then((data) => {
+        if (!isMounted) return;
+        if (!data || !data.id) throw new Error("Beklenmeyen otel verisi alındı.");
+        sessionStorage.setItem("bakoda_hotel_id", String(data.id));
         setHotel(transformHotel(data));
+        setStatus("ready");
       })
-      .catch(() => {});
-  }, [hotelId]);
+      .catch((err) => {
+        if (controller.signal.aborted || !isMounted) return;
+        fail(err?.message || "Otel bilgileri alınırken bir hata oluştu.");
+      });
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [hotelId, isHotelIdValid, retryTick]);
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -485,30 +685,72 @@ function App() {
 
   const navLight = (delta) => setLightIdx(i => (i + delta + 5) % 5);
 
-  if (!hotel) return (
+  const submitReview = async ({ rating, title, text }) => {
+    const token = localStorage.getItem("bakoda_token");
+    if (!token) {
+      return { ok:false, error:"Yorum eklemek için giriş yapmalısınız." };
+    }
+    try {
+      const res = await fetch(`/api/hotels/${hotel.id}/reviews`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rating, title: title || null, text }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        return { ok:false, error: payload?.detail || "Yorum gönderilemedi." };
+      }
+      const refreshed = await fetchHotelDetail(hotel.id);
+      setHotel(transformHotel(refreshed));
+      flash("Yorumunuz kaydedildi.");
+      return { ok:true };
+    } catch (err) {
+      return { ok:false, error: err?.message || "Bağlantı hatası. Tekrar deneyin." };
+    }
+  };
+
+  if (status === "loading") return (
     <div style={{ minHeight:"100vh", display:"grid", placeItems:"center", fontFamily:"var(--body)", color:"var(--muted)", fontSize:16 }}>
-      Otel bilgileri yükleniyor…
+      {t("common.loading")}
+    </div>
+  );
+
+  if (status === "error") return (
+    <div style={{ minHeight:"100vh", display:"grid", placeItems:"center", padding:"24px" }}>
+      <div style={{ maxWidth:560, width:"100%", textAlign:"center", background:"#fff", border:"1px solid var(--line)", borderRadius:16, padding:"28px 24px" }}>
+        <div style={{ fontFamily:"var(--display)", color:"var(--primary)", fontSize:26, marginBottom:8 }}>{t("common.loadFailed")}</div>
+        <p style={{ margin:"0 0 18px", color:"var(--muted)" }}>{loadError || t("common.loadingErrorDefault")}</p>
+        <div style={{ display:"flex", justifyContent:"center", gap:10, flexWrap:"wrap" }}>
+          <button className="btn btn-primary" type="button" onClick={() => setRetryTick(x => x + 1)}>
+            {t("common.retry")}
+          </button>
+          <a className="btn btn-secondary" href="search-results.html">{t("common.backToSearch")}</a>
+        </div>
+      </div>
     </div>
   );
 
   return (
     <>
-      <Navbar active="Oteller" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
+      <Navbar active="nav.hotels" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
 
       <div className="page">
         <div className="crumbs">
           <div className="container crumbs-inner">
             <div className="crumbs-nav">
-              <a href="index.html">Anasayfa</a>
+              <a href="index.html">{t("common.home")}</a>
               <span className="sep">/</span>
-              <a href="search-results.html">{hotel.district ? hotel.district.split(",")[0] : "Oteller"}</a>
+              <a href="search-results.html">{hotel.district ? hotel.district.split(",")[0] : t("common.hotels")}</a>
               <span className="sep">/</span>
               <span className="here">{hotel.name}</span>
             </div>
             <div className="crumbs-actions">
-              <button type="button"><IconShare size={13} /> Paylaş</button>
-              <button type="button" className={fav ? "on":""} onClick={() => { setFav(!fav); flash(fav ? "Favorilerden çıkarıldı" : "Favorilere eklendi"); }}>
-                <IconHeart size={13} filled={fav} /> {fav ? "Kaydedildi" : "Kaydet"}
+              <button type="button"><IconShare size={13} /> {t("common.share")}</button>
+              <button type="button" className={fav ? "on":""} onClick={() => { setFav(!fav); flash(fav ? t("common.removedFav") : t("common.addedFav")); }}>
+                <IconHeart size={13} filled={fav} /> {fav ? t("common.saved") : t("common.save")}
               </button>
             </div>
           </div>
@@ -525,32 +767,32 @@ function App() {
                     <span className="h-stars" aria-label={`${hotel.stars} yıldız`}>
                       {Array.from({length: hotel.stars}).map((_, i) => <IconStar key={i} size={15} filled />)}
                     </span>
-                    <span className="h-badge"><IconHeart size={12} filled /> Misafir Favorisi</span>
+                    <span className="h-badge"><IconHeart size={12} filled /> {t("common.guestFavorite")}</span>
                   </div>
                   <h1 className="h-name">{hotel.name}</h1>
-                  <div className="h-loc"><IconMapPin size={14} /> {hotel.district} · <a href="#">Haritada göster</a></div>
+                  <div className="h-loc"><IconMapPin size={14} /> {hotel.district} · <a href={`https://maps.google.com/?q=${encodeURIComponent(`${hotel.name} ${hotel.district}`)}`} target="_blank" rel="noreferrer">{t("common.showOnMap")}</a></div>
                 </div>
                 <div className="h-score">
                   <div className="meta">
                     <div className="verdict">{hotel.verdict}</div>
-                    <div className="reviews"><a href="#reviews" onClick={(e)=>{e.preventDefault(); setTab("reviews");}}>{new Intl.NumberFormat("tr-TR").format(hotel.reviews)} değerlendirme</a></div>
+                    <div className="reviews"><a href="#reviews" onClick={(e)=>{e.preventDefault(); setTab("reviews");}}>{new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(hotel.reviews)} {t("common.reviews")}</a></div>
                   </div>
-                  <div className="badge">{hotel.rating.toFixed(1)}</div>
+                  <div className="badge">{hotel.rating.toFixed(1)}/10</div>
                 </div>
               </header>
 
               <div className="tabs" role="tablist">
-                {TABS.map(t => (
-                  <button key={t.id} role="tab" aria-selected={tab === t.id}
-                    className={`tab ${tab === t.id ? "active":""}`}
-                    onClick={() => setTab(t.id)}>{t.label}</button>
+                {["overview", "rooms", "amenities", "reviews"].map((tabId) => (
+                  <button key={tabId} role="tab" aria-selected={tab === tabId}
+                    className={`tab ${tab === tabId ? "active":""}`}
+                    onClick={() => setTab(tabId)}>{t(`tabs.${tabId}`)}</button>
                 ))}
               </div>
 
               {tab === "overview"  && <OverviewPanel hotel={hotel} go={setTab} />}
               {tab === "rooms"     && <RoomsPanel hotel={hotel} />}
               {tab === "amenities" && <AmenitiesPanel hotel={hotel} />}
-              {tab === "reviews"   && <ReviewsPanel hotel={hotel} />}
+              {tab === "reviews"   && <ReviewsPanel hotel={hotel} onSubmitReview={submitReview} />}
             </main>
 
             <BookingPanel hotel={hotel} onBook={(total) => flash(`Rezervasyon başlatıldı · ${fmtTL(total)}`)} />

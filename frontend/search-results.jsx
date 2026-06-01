@@ -1,6 +1,106 @@
 // Search results page — sidebar filters + horizontal hotel cards
 
 const { useState, useMemo, useEffect } = React;
+const SEARCH_I18N = {
+  tr: {
+    sidebar: {
+      filters: "Filtreler",
+      clear: "Temizle",
+      priceRange: "Fiyat Aralığı (gece)",
+      min: "En Düşük",
+      max: "En Yüksek",
+      stars: "Yıldız Sayısı",
+      amenities: "Özellikler",
+      guestScore: "Misafir Puanı",
+      good: "İyi 7+",
+      veryGood: "Çok İyi 8+",
+      excellent: "Mükemmel 9+",
+      apply: "Filtrele",
+    },
+    card: {
+      featured: "Öne Çıkan",
+      addFav: "Favorilere ekle",
+      showMap: "Haritada göster",
+      reviews: "yorum",
+      from: "başlangıç",
+      perNight: "/ gece",
+      total: "toplam",
+      viewDetails: "Detayları Gör",
+    },
+    page: {
+      home: "Anasayfa",
+      allHotels: "Tüm Oteller",
+      allHotelsLower: "Tüm otellerde",
+      foundHotels: "otel bulundu",
+      allCities: "Tüm şehirler",
+      guest: "misafir",
+      room: "oda",
+      sort: "Sırala",
+      recommended: "Önerilenler",
+      priceAsc: "Fiyat: Artan",
+      priceDesc: "Fiyat: Azalan",
+      score: "Konuk Puanı",
+      stars: "Yıldız Sayısı",
+      remove: "Kaldır",
+      noResults: "Sonuç bulunamadı",
+      retry: "Filtreleri değiştirip yeniden deneyin.",
+      filteredToast: "otel filtrelendi",
+      loading: "Oteller yükleniyor...",
+      loadError: "Arama sırasında bir hata oluştu.",
+      cityNoResult: "Aramanıza uygun otel bulunamadı.",
+      filterNoResult: "Filtreleri gevşetip tekrar deneyin.",
+    },
+  },
+  en: {
+    sidebar: {
+      filters: "Filters",
+      clear: "Clear",
+      priceRange: "Price Range (night)",
+      min: "Minimum",
+      max: "Maximum",
+      stars: "Star Rating",
+      amenities: "Amenities",
+      guestScore: "Guest Score",
+      good: "Good 7+",
+      veryGood: "Very Good 8+",
+      excellent: "Excellent 9+",
+      apply: "Apply Filters",
+    },
+    card: {
+      featured: "Featured",
+      addFav: "Add to favorites",
+      showMap: "Show on map",
+      reviews: "reviews",
+      from: "from",
+      perNight: "/ night",
+      total: "total",
+      viewDetails: "View Details",
+    },
+    page: {
+      home: "Home",
+      allHotels: "All Hotels",
+      allHotelsLower: "Across all hotels",
+      foundHotels: "hotels found",
+      allCities: "All cities",
+      guest: "guests",
+      room: "rooms",
+      sort: "Sort",
+      recommended: "Recommended",
+      priceAsc: "Price: Low to High",
+      priceDesc: "Price: High to Low",
+      score: "Guest Rating",
+      stars: "Star Rating",
+      remove: "Remove",
+      noResults: "No results found",
+      retry: "Try adjusting filters and search again.",
+      filteredToast: "hotels filtered",
+      loading: "Loading hotels...",
+      loadError: "Something went wrong while searching.",
+      cityNoResult: "No hotels matched your search.",
+      filterNoResult: "Try relaxing your filters.",
+    },
+  },
+};
 
 // ── Data ──────────────────────────────────────────────────────────────
 const RESULTS = [
@@ -28,6 +128,75 @@ function verdictFor(r) {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
+const SEARCH_STATE_KEY = "bakoda_last_search";
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DEFAULT_GUESTS = 2;
+const DEFAULT_ROOMS = 1;
+
+const parsePositiveInt = (value, fallback) => {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+const normalizeCity = (value) => String(value || "").trim();
+const isIsoDate = (value) => ISO_DATE_RE.test(String(value || ""));
+
+function safeParseSearchState(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredSearchState() {
+  let sessionRaw = null;
+  let localRaw = null;
+  try { sessionRaw = sessionStorage.getItem(SEARCH_STATE_KEY); } catch {}
+  try { localRaw = localStorage.getItem(SEARCH_STATE_KEY); } catch {}
+  const fromSession = safeParseSearchState(sessionRaw);
+  if (fromSession) return fromSession;
+  return safeParseSearchState(localRaw);
+}
+
+function clearStoredSearchState() {
+  try { sessionStorage.removeItem(SEARCH_STATE_KEY); } catch {}
+  try { localStorage.removeItem(SEARCH_STATE_KEY); } catch {}
+}
+
+function persistSearchState(state) {
+  try { sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state)); } catch {}
+}
+
+function normalizeSearchState(queryParams) {
+  const hasAnyQuery = Array.from(queryParams.keys()).length > 0;
+  const stored = hasAnyQuery ? (readStoredSearchState() || {}) : {};
+  const city = normalizeCity(
+    queryParams.get("city")
+      || queryParams.get("location")
+      || stored.city
+      || stored.location
+      || ""
+  );
+  const checkIn = String(queryParams.get("check_in") || stored.check_in || "").trim();
+  const checkOut = String(queryParams.get("check_out") || stored.check_out || "").trim();
+  const guests = parsePositiveInt(queryParams.get("guests") || queryParams.get("adults") || stored.guests, DEFAULT_GUESTS);
+  const rooms = parsePositiveInt(queryParams.get("rooms") || stored.rooms, DEFAULT_ROOMS);
+
+  if ((checkIn && !isIsoDate(checkIn)) || (checkOut && !isIsoDate(checkOut))) {
+    clearStoredSearchState();
+    return { city, checkIn: "", checkOut: "", guests, rooms };
+  }
+  if (checkIn && checkOut && checkOut <= checkIn) {
+    clearStoredSearchState();
+    return { city, checkIn: "", checkOut: "", guests, rooms };
+  }
+  return { city, checkIn, checkOut, guests, rooms };
+}
 
 // ── Price slider (dual-thumb) ─────────────────────────────────────────
 function PriceSlider({ min = 500, max = 20000, step = 100, value, onChange }) {
@@ -81,6 +250,7 @@ function CheckOpt({ label, count, checked, onChange, leading }) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────
 function Sidebar({ filters, setFilters, onApply, results = [] }) {
+  const { t } = useI18n(SEARCH_I18N);
   const toggle = (key, value) => {
     const arr = filters[key];
     setFilters({ ...filters, [key]: arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value] });
@@ -91,24 +261,24 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
   });
 
   return (
-    <aside className="sidebar" aria-label="Filtreler">
+    <aside className="sidebar" aria-label={t("sidebar.filters")}>
       <div className="sidebar-inner">
         <div className="sb-head">
-          <h3>Filtreler</h3>
-          <button className="clear" onClick={clear}>Temizle</button>
+          <h3>{t("sidebar.filters")}</h3>
+          <button className="clear" onClick={clear}>{t("sidebar.clear")}</button>
         </div>
 
         <div className="sb-sep" />
 
         <div className="filter-block">
-          <div className="filter-label">Fiyat Aralığı (gece)</div>
+          <div className="filter-label">{t("sidebar.priceRange")}</div>
           <PriceSlider value={filters.price} onChange={(v) => set("price", v)} />
         </div>
 
         <div className="sb-sep" />
 
         <div className="filter-block">
-          <div className="filter-label">Yıldız Sayısı</div>
+          <div className="filter-label">{t("sidebar.stars")}</div>
           {[5,4,3].map(s => (
             <CheckOpt key={s}
               checked={filters.stars.includes(s)}
@@ -127,7 +297,7 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
         <div className="sb-sep" />
 
         <div className="filter-block">
-          <div className="filter-label">Özellikler</div>
+          <div className="filter-label">{t("sidebar.amenities")}</div>
           {[
             { k: "pool",      l: "Havuz" },
             { k: "spa",       l: "Spa" },
@@ -146,12 +316,12 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
         <div className="sb-sep" />
 
         <div className="filter-block">
-          <div className="filter-label">Misafir Puanı</div>
+          <div className="filter-label">{t("sidebar.guestScore")}</div>
           <div className="chips" role="radiogroup">
             {[
-              { v: 7, l: "İyi 7+" },
-              { v: 8, l: "Çok İyi 8+" },
-              { v: 9, l: "Mükemmel 9+" },
+              { v: 7.0, l: t("sidebar.good") },
+              { v: 8.0, l: t("sidebar.veryGood") },
+              { v: 9.0, l: t("sidebar.excellent") },
             ].map(o => (
               <button key={o.v} className="chip" type="button"
                 aria-pressed={filters.minScore === o.v}
@@ -163,7 +333,7 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
         </div>
 
         <button className="btn btn-cta apply" onClick={onApply}>
-          <IconSearch size={16} /> Filtrele
+          <IconSearch size={16} /> {t("sidebar.apply")}
         </button>
       </div>
     </aside>
@@ -172,15 +342,16 @@ function Sidebar({ filters, setFilters, onApply, results = [] }) {
 
 // ── Result card ───────────────────────────────────────────────────────
 function ResultCard({ r, fav, onFav, onView }) {
+  const { t, lang } = useI18n(SEARCH_I18N);
   const v = verdictFor(r.rating);
+  const mapQuery = encodeURIComponent(`İstanbul ${r.district}`);
   return (
     <article className="result-card fade-in" onClick={onView}>
       <div className="rc-img">
         <img src={r.thumbnail || `https://picsum.photos/seed/hotel_${r.id}_0/600/400`} alt={r.name}
              style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
-        {r.featured && <span className="rc-badge">Öne Çıkan</span>}
-        {r.featured && <span className="rc-badge">Öne Çıkan</span>}
-        <button className={`rc-fav ${fav ? "on":""}`} type="button" aria-label="Favorilere ekle"
+        {r.featured && <span className="rc-badge">{t("card.featured")}</span>}
+        <button className={`rc-fav ${fav ? "on":""}`} type="button" aria-label={t("card.addFav")}
                 onClick={(e) => { e.stopPropagation(); onFav(); }}>
           <IconHeart size={17} filled={fav} />
         </button>
@@ -196,7 +367,7 @@ function ResultCard({ r, fav, onFav, onView }) {
           </div>
           <h3 className="rc-name">{r.name}</h3>
           <div className="rc-loc">
-            <IconMapPin size={13} /> İstanbul, {r.district} · <a href="#">Haritada göster</a>
+            <IconMapPin size={13} /> İstanbul, {r.district} · <a href={`https://maps.google.com/?q=${mapQuery}`} target="_blank" rel="noreferrer">{t("card.showMap")}</a>
           </div>
           <div className="rc-amen">
             {r.amen.map(a => {
@@ -215,17 +386,17 @@ function ResultCard({ r, fav, onFav, onView }) {
           <div className="rc-score">
             <div className="meta">
               <div className="verdict">{v}</div>
-              <div className="reviews">{new Intl.NumberFormat("tr-TR").format(r.reviews)} yorum</div>
+              <div className="reviews">{new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(r.reviews)} {t("card.reviews")}</div>
             </div>
-            <div className={`badge ${r.rating >= 9 ? "gold" : ""}`}>{r.rating.toFixed(1)}</div>
+            <div className={`badge ${r.rating >= 9.0 ? "gold" : ""}`}>{r.rating.toFixed(1)}/10</div>
           </div>
           <div className="rc-price">
-            <div className="from">başlangıç</div>
+            <div className="from">{t("card.from")}</div>
             <b>{fmtTL(r.price)}</b>
-            <span className="per">/ gece</span>
-            <div className="total">3 gece · {fmtTL(r.price * 3)} toplam</div>
+            <span className="per">{t("card.perNight")}</span>
+            <div className="total">3 {lang === "en" ? "nights" : "gece"} · {fmtTL(r.price * 3)} {t("card.total")}</div>
             <button className="btn btn-primary" onClick={(e) => { e.stopPropagation(); onView(); }}>
-              Detayları Gör <IconArrow size={14} />
+              {t("card.viewDetails")} <IconArrow size={14} />
             </button>
           </div>
         </div>
@@ -236,18 +407,14 @@ function ResultCard({ r, fav, onFav, onView }) {
 
 // ── App ───────────────────────────────────────────────────────────────
 function App() {
-  const _qs = new URLSearchParams(window.location.search);
-  const _urlCity    = _qs.get("city") || "";
-  const _urlCheckIn = _qs.get("check_in")  || "";
-  const _urlCheckOut= _qs.get("check_out") || "";
-  const _urlAdults  = parseInt(_qs.get("adults") || "2", 10);
-  const _urlRooms   = parseInt(_qs.get("rooms")  || "1", 10);
+  const { t } = useI18n(SEARCH_I18N);
+  const initialSearch = useMemo(() => normalizeSearchState(new URLSearchParams(window.location.search)), []);
 
-  const [city, setCity] = useState(_urlCity);
-  const [checkIn, setCheckIn]   = useState(_urlCheckIn);
-  const [checkOut, setCheckOut] = useState(_urlCheckOut);
-  const [adults, setAdults]     = useState(_urlAdults);
-  const [rooms, setRooms]       = useState(_urlRooms);
+  const [city, setCity] = useState(initialSearch.city);
+  const [checkIn, setCheckIn]   = useState(initialSearch.checkIn);
+  const [checkOut, setCheckOut] = useState(initialSearch.checkOut);
+  const [adults, setAdults]     = useState(initialSearch.guests);
+  const [rooms, setRooms]       = useState(initialSearch.rooms);
   const [filters, setFilters] = useState({
     price: [500, 20000], stars: [], amenities: [], minScore: null,
   });
@@ -258,6 +425,8 @@ function App() {
   const toastT = React.useRef(null);
   const [results, setResults] = useState([]);
   const [totalInCity, setTotalInCity] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState("");
 
   const flash = (msg) => {
     setToast({ on:true, msg });
@@ -266,28 +435,75 @@ function App() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams({ sort, page });
-    if (city) params.set("city", city);
+    const next = new URLSearchParams();
+    if (city) {
+      next.set("city", city);
+      next.set("location", city);
+    }
+    if (checkIn) next.set("check_in", checkIn);
+    if (checkOut) next.set("check_out", checkOut);
+    next.set("guests", String(Math.max(1, adults)));
+    next.set("rooms", String(Math.max(1, rooms)));
+    const nextQuery = next.toString();
+    const currentQuery = window.location.search.replace(/^\?/, "");
+    if (nextQuery !== currentQuery) {
+      const url = "search-results.html" + (nextQuery ? `?${nextQuery}` : "");
+      window.history.replaceState({}, "", url);
+    }
+    persistSearchState({
+      city,
+      location: city,
+      check_in: checkIn,
+      check_out: checkOut,
+      guests: Math.max(1, adults),
+      rooms: Math.max(1, rooms),
+    });
+  }, [city, checkIn, checkOut, adults, rooms]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({ sort, page: String(page) });
+    if (city) {
+      params.set("city", city);
+      params.set("location", city);
+    }
     if (checkIn) params.set("check_in", checkIn);
     if (checkOut) params.set("check_out", checkOut);
-    if (adults > 1) params.set("min_capacity", adults);
-    if (filters.price[0] > 500) params.set("price_min", filters.price[0]);
-    if (filters.price[1] < 20000) params.set("price_max", filters.price[1]);
-    if (filters.stars.length === 1) params.set("stars", filters.stars[0]);
-    fetch(`/api/hotels?${params}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.hotels) {
-          setResults(d.hotels.map(h => ({
-            id: h.id, name: h.name, type: `${h.stars} Yıldız`, district: h.district || h.city,
-            stars: h.stars, rating: h.rating * 2, reviews: h.reviews_count,
-            price: h.price_per_night, thumbnail: h.thumbnail, featured: false,
-            amen: [], perks: [], cancel: false, breakfast: false, note: "",
-          })));
-          setTotalInCity(d.total);
-        }
+    params.set("guests", String(Math.max(1, adults)));
+    if (filters.price[0] > 500) params.set("price_min", String(filters.price[0]));
+    if (filters.price[1] < 20000) params.set("price_max", String(filters.price[1]));
+    if (filters.stars.length === 1) params.set("stars", String(filters.stars[0]));
+
+    setIsLoading(true);
+    setFetchError("");
+    fetch(`/api/hotels?${params.toString()}`, { signal: controller.signal })
+      .then(async (r) => {
+        let body = {};
+        try { body = await r.json(); } catch {}
+        if (!r.ok) throw new Error(body?.detail || "Arama sırasında bir hata oluştu.");
+        return body;
       })
-      .catch(() => {});
+      .then((d) => {
+        const hotels = Array.isArray(d?.hotels) ? d.hotels : [];
+        setResults(hotels.map(h => ({
+          id: h.id, name: h.name, type: `${h.stars} Yıldız`, district: h.district || h.city,
+          stars: h.stars, rating: h.rating || 0, reviews: h.reviews_count,
+          price: h.price_per_night, thumbnail: h.thumbnail, featured: false,
+          amen: [], perks: [], cancel: false, breakfast: false, note: "",
+        })));
+        setTotalInCity(Number.isFinite(d?.total) ? d.total : hotels.length);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setResults([]);
+        setTotalInCity(0);
+        setFetchError(err?.message || "Arama sırasında bir hata oluştu.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => controller.abort();
   }, [city, checkIn, checkOut, adults, filters, sort, page]);
 
   const filtered = useMemo(() => {
@@ -324,40 +540,40 @@ function App() {
 
   return (
     <>
-      <Navbar active="Oteller" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
+      <Navbar active="nav.hotels" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
 
       <div className="page">
         <div className="crumbs">
           <div className="container crumbs-inner">
-            <a href="index.html">Anasayfa</a>
+            <a href="index.html">{t("page.home")}</a>
             <span className="sep">/</span>
-            <span className="here">{city || "Tüm Oteller"}</span>
+            <span className="here">{city || t("page.allHotels")}</span>
           </div>
         </div>
 
         <div className="container">
           <div className="results-wrap">
-            <Sidebar filters={filters} setFilters={setFilters} results={results} onApply={() => flash(`${filtered.length} otel filtrelendi`)} />
+            <Sidebar filters={filters} setFilters={setFilters} results={results} onApply={() => flash(`${filtered.length} ${t("page.filteredToast")}`)} />
 
             <main>
               <div className="summary">
                 <div>
-                  <h1>{city ? `${city}'da` : "Tüm otellerde"} <b>{totalInCity}</b> otel bulundu</h1>
+                  <h1>{city ? `${city}'da` : t("page.allHotelsLower")} <b>{totalInCity}</b> {t("page.foundHotels")}</h1>
                   <p>
-                    {city || "Tüm şehirler"}
+                    {city || t("page.allCities")}
                     {checkIn && checkOut && ` · ${checkIn} → ${checkOut}`}
-                    {adults > 1 && ` · ${adults} misafir`}
-                    {rooms > 1 && ` · ${rooms} oda`}
+                    {adults > 1 && ` · ${adults} ${t("page.guest")}`}
+                    {rooms > 1 && ` · ${rooms} ${t("page.room")}`}
                   </p>
                 </div>
                 <div className="sort">
-                  <label htmlFor="sort">Sırala</label>
+                  <label htmlFor="sort">{t("page.sort")}</label>
                   <select id="sort" className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-                    <option value="recommended">Önerilenler</option>
-                    <option value="price-asc">Fiyat: Artan</option>
-                    <option value="price-desc">Fiyat: Azalan</option>
-                    <option value="rating">Konuk Puanı</option>
-                    <option value="stars">Yıldız Sayısı</option>
+                    <option value="recommended">{t("page.recommended")}</option>
+                    <option value="price-asc">{t("page.priceAsc")}</option>
+                    <option value="price-desc">{t("page.priceDesc")}</option>
+                    <option value="rating">{t("page.score")}</option>
+                    <option value="stars">{t("page.stars")}</option>
                   </select>
                 </div>
               </div>
@@ -366,27 +582,38 @@ function App() {
                 <div className="active-filters">
                   {activeChips.map(c => (
                     <span key={c.k} className="active-chip">{c.label}
-                      <button onClick={c.clear} aria-label="Kaldır"><IconX size={11} /></button>
+                      <button onClick={c.clear} aria-label={t("page.remove")}><IconX size={11} /></button>
                     </span>
                   ))}
                 </div>
               )}
 
               <div className="result-list">
-                {filtered.map(r => (
+                {!isLoading && !fetchError && filtered.map(r => (
                   <ResultCard key={r.id} r={r}
                     fav={favs.has(r.id)} onFav={() => toggleFav(r.id)}
                     onView={() => { window.location.href = "hotel-detail.html?id=" + r.id; }} />
                 ))}
-                {filtered.length === 0 && (
+                {isLoading && (
                   <div style={{ padding:60, textAlign:"center", color:"var(--muted)", background:"#fff", borderRadius:16, border:"1px solid var(--line)" }}>
-                    <div style={{ fontFamily:"var(--display)", fontSize:22, color:"var(--primary)", marginBottom:8 }}>Sonuç bulunamadı</div>
-                    Filtreleri değiştirip yeniden deneyin.
+                    <div style={{ fontFamily:"var(--display)", fontSize:22, color:"var(--primary)", marginBottom:8 }}>{t("page.loading")}</div>
+                  </div>
+                )}
+                {!isLoading && !!fetchError && (
+                  <div style={{ padding:60, textAlign:"center", color:"var(--muted)", background:"#fff", borderRadius:16, border:"1px solid var(--line)" }}>
+                    <div style={{ fontFamily:"var(--display)", fontSize:22, color:"var(--error)", marginBottom:8 }}>{t("page.loadError")}</div>
+                    {fetchError}
+                  </div>
+                )}
+                {!isLoading && !fetchError && filtered.length === 0 && (
+                  <div style={{ padding:60, textAlign:"center", color:"var(--muted)", background:"#fff", borderRadius:16, border:"1px solid var(--line)" }}>
+                    <div style={{ fontFamily:"var(--display)", fontSize:22, color:"var(--primary)", marginBottom:8 }}>{t("page.noResults")}</div>
+                    {results.length === 0 ? t("page.cityNoResult") : t("page.filterNoResult")}
                   </div>
                 )}
               </div>
 
-              {filtered.length > 0 && (
+              {!isLoading && !fetchError && filtered.length > 0 && (
                 <div className="pag">
                   <button className="arrow" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p-1))}>‹</button>
                   {[1,2,3,4,5].map(p => (

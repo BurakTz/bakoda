@@ -2,6 +2,132 @@
 // Components live in this file for editability. Sections are clearly delimited.
 
 const { useState, useEffect, useRef, useMemo } = React;
+const APP_I18N = {
+  tr: {
+    search: {
+      aria: "Otel arama",
+      location: "Lokasyon",
+      locationPlaceholder: "Nereye gidiyorsunuz?",
+      results: "Sonuçlar",
+      popular: "Popüler Aramalar",
+      noResult: "Sonuç yok — başka bir lokasyon deneyin",
+      checkIn: "Giriş",
+      checkOut: "Çıkış",
+      guest: "Misafir",
+      person: "kişi",
+      room: "oda",
+      adult: "yetişkin",
+      child: "çocuk",
+      done: "Tamam",
+      searchHotel: "Otel Ara",
+      night: "gece",
+      validationCity: "Lütfen bir şehir veya bölge girin.",
+      validationDates: "Lütfen geçerli giriş ve çıkış tarihleri seçin.",
+      validationOrder: "Çıkış tarihi giriş tarihinden sonra olmalı.",
+    },
+    hero: {
+      eyebrow: "50.000+ Seçilmiş Konaklama",
+      sub: "Dünya genelinde dikkatle seçilmiş otel ve butik konaklama. Gerçek konuk yorumları, en iyi fiyat garantisi.",
+    },
+    destinations: {
+      eyebrow: "Popüler Destinasyonlar",
+      title: "Trend olan şehirler",
+      sub: "Konuklarımızın bu sezon en çok keşfettiği üç durak. Yerel rehberlik, taşıma ve kahvaltı dahil.",
+      all: "Tüm destinasyonlar",
+      hotelSuffix: "otel",
+      explore: "Keşfet",
+    },
+    hotel: {
+      featured: "Öne Çıkan",
+      addFav: "Favorilere ekle",
+      reviews: "yorum",
+      pool: "Havuz",
+      breakfast: "Kahvaltı",
+      perNight: "/ gece",
+      inspect: "İncele",
+    },
+    featured: {
+      eyebrow: "Öne Çıkan Oteller",
+      title: "Editörlerimizin seçimi",
+      sub: "Mimarisi, hizmeti ve konumuyla öne çıkan altı konaklama. Her biri editörlerimiz tarafından bizzat ziyaret edildi.",
+      allHotels: "Tüm oteller",
+    },
+    why: {
+      eyebrow: "Neden bakoda",
+      title: "Kaygısız bir konaklama deneyimi",
+      secure: "Güvenli Ödeme",
+      secureText: "256-bit şifreleme. Kartınız sadece konaklama sırasında işlenir.",
+      best: "En İyi Fiyat",
+      bestText: "Daha düşük bir fiyat bulursanız aradaki farkı geri ödüyoruz.",
+      support: "7/24 Destek",
+      supportText: "Konuk hizmetleri ekibimiz Türkçe ve İngilizce, gece gündüz hizmetinizde.",
+      cancel: "Ücretsiz İptal",
+      cancelText: "Çoğu rezervasyonda girişe 48 saat kalana dek tam iade.",
+    },
+  },
+  en: {
+    search: {
+      aria: "Hotel search",
+      location: "Location",
+      locationPlaceholder: "Where are you going?",
+      results: "Results",
+      popular: "Popular Searches",
+      noResult: "No results — try another location",
+      checkIn: "Check-in",
+      checkOut: "Check-out",
+      guest: "Guests",
+      person: "people",
+      room: "room",
+      adult: "adults",
+      child: "children",
+      done: "Done",
+      searchHotel: "Search Hotels",
+      night: "night",
+      validationCity: "Please enter a city or district.",
+      validationDates: "Please pick valid check-in and check-out dates.",
+      validationOrder: "Check-out must be after check-in.",
+    },
+    hero: {
+      eyebrow: "50,000+ Curated Stays",
+      sub: "Carefully selected hotels and boutique stays around the world. Real guest reviews and best price guarantee.",
+    },
+    destinations: {
+      eyebrow: "Popular Destinations",
+      title: "Trending cities",
+      sub: "Three places our guests explored most this season. Local guidance, transport, and breakfast included.",
+      all: "All destinations",
+      hotelSuffix: "hotels",
+      explore: "Explore",
+    },
+    hotel: {
+      featured: "Featured",
+      addFav: "Add to favorites",
+      reviews: "reviews",
+      pool: "Pool",
+      breakfast: "Breakfast",
+      perNight: "/ night",
+      inspect: "View",
+    },
+    featured: {
+      eyebrow: "Featured Hotels",
+      title: "Editors' picks",
+      sub: "Six properties selected for their architecture, service, and location.",
+      allHotels: "All hotels",
+    },
+    why: {
+      eyebrow: "Why bakoda",
+      title: "A worry-free stay experience",
+      secure: "Secure Payment",
+      secureText: "256-bit encryption. Your card is processed only during stay.",
+      best: "Best Price",
+      bestText: "If you find a lower rate, we refund the difference.",
+      support: "24/7 Support",
+      supportText: "Our guest support team is available in Turkish and English.",
+      cancel: "Free Cancellation",
+      cancelText: "Full refund for most bookings up to 48 hours before check-in.",
+    },
+  },
+};
 
 // ── Data ──────────────────────────────────────────────────────────────
 const DESTINATIONS = [
@@ -11,12 +137,12 @@ const DESTINATIONS = [
 
 
 const HOTELS = [
-{ id: 1, name: "Çırağan Palace Suites", city: "İstanbul, Beşiktaş", rating: 4.9, reviews: 1284, price: 8400, currency: "₺", featured: true, ph: "ph-h1", tags: ["Boğaz Manzarası", "Spa", "Havuz"], note: "luxe · waterfront" },
-{ id: 2, name: "Maison Lumière Marais", city: "Paris, 3. Bölge", rating: 4.8, reviews: 642, price: 4200, currency: "€", featured: true, ph: "ph-h2", tags: ["Şehir Merkezi", "Restoran"], note: "boutique · 18 oda" },
-{ id: 3, name: "Villa Ananda Ubud", city: "Bali, Ubud", rating: 4.95, reviews: 318, price: 380, currency: "$", featured: true, ph: "ph-h4", tags: ["Pirinç Terası", "Yoga"], note: "retreat · jungle" },
-{ id: 4, name: "The Cappadocia Cave Resort", city: "Nevşehir, Ürgüp", rating: 4.85, reviews: 891, price: 6200, currency: "₺", featured: false, ph: "ph-h3", tags: ["Mağara Oda", "Manzara"], note: "stone · honey" },
-{ id: 5, name: "Casa Solana Riviera", city: "Antalya, Kalkan", rating: 4.7, reviews: 524, price: 5800, currency: "₺", featured: false, ph: "ph-h5", tags: ["Plaj", "Özel Havuz"], note: "terracotta · sea" },
-{ id: 6, name: "Hôtel Aubépine Rive Gauche", city: "Paris, 6. Bölge", rating: 4.75, reviews: 412, price: 3650, currency: "€", featured: false, ph: "ph-h6", tags: ["Sanat", "Bahçe"], note: "atelier · garden" }];
+{ id: 1, name: "Çırağan Palace Suites", city: "İstanbul, Beşiktaş", rating: 9.8, reviews: 1284, price: 8400, currency: "₺", featured: true, ph: "ph-h1", tags: ["Boğaz Manzarası", "Spa", "Havuz"], note: "luxe · waterfront" },
+{ id: 2, name: "Maison Lumière Marais", city: "Paris, 3. Bölge", rating: 9.6, reviews: 642, price: 4200, currency: "€", featured: true, ph: "ph-h2", tags: ["Şehir Merkezi", "Restoran"], note: "boutique · 18 oda" },
+{ id: 3, name: "Villa Ananda Ubud", city: "Bali, Ubud", rating: 9.9, reviews: 318, price: 380, currency: "$", featured: true, ph: "ph-h4", tags: ["Pirinç Terası", "Yoga"], note: "retreat · jungle" },
+{ id: 4, name: "The Cappadocia Cave Resort", city: "Nevşehir, Ürgüp", rating: 9.7, reviews: 891, price: 6200, currency: "₺", featured: false, ph: "ph-h3", tags: ["Mağara Oda", "Manzara"], note: "stone · honey" },
+{ id: 5, name: "Casa Solana Riviera", city: "Antalya, Kalkan", rating: 9.4, reviews: 524, price: 5800, currency: "₺", featured: false, ph: "ph-h5", tags: ["Plaj", "Özel Havuz"], note: "terracotta · sea" },
+{ id: 6, name: "Hôtel Aubépine Rive Gauche", city: "Paris, 6. Bölge", rating: 9.5, reviews: 412, price: 3650, currency: "€", featured: false, ph: "ph-h6", tags: ["Sanat", "Bahçe"], note: "atelier · garden" }];
 
 
 const TRENDING_QUERIES = [
@@ -38,17 +164,27 @@ const fmtDate = (d) => {
 };
 const addDays = (d, n) => {const x = new Date(d);x.setDate(x.getDate() + n);return x;};
 const today = () => {const d = new Date();d.setHours(0, 0, 0, 0);return d;};
+const SEARCH_STATE_KEY = "bakoda_last_search";
+const isValidDateObj = (d) => d instanceof Date && !Number.isNaN(d.getTime());
+const toIsoDate = (d) => (isValidDateObj(d) ? d.toISOString().slice(0, 10) : "");
+
+function persistSearchState(state) {
+  try { sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state)); } catch {}
+}
 
 // ── Navbar ────────────────────────────────────────────────────────────
 // ── Navbar / Footer / Toast live in shared.jsx (loaded before this file) ──
 
 // ── Search card ─────────────────────────────────────────────────────────────────────
 function SearchCard({ onSearch }) {
+  const { t } = useI18n(APP_I18N);
   const [loc, setLoc] = useState("İstanbul");
   const [showSuggest, setShowSuggest] = useState(false);
   const [showCalendar, setShowCalendar] = useState(null); // "in" | "out" | null
   const [showGuests, setShowGuests] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [error, setError] = useState("");
   const t0 = today();
   const [checkIn, setCheckIn] = useState(addDays(t0, 7));
   const [checkOut, setCheckOut] = useState(addDays(t0, 10));
@@ -76,14 +212,37 @@ function SearchCard({ onSearch }) {
 
   const pickLoc = (d) => {setLoc(d.name);setShowSuggest(false);};
   const nights = Math.max(1, Math.round((checkOut - checkIn) / 86400000));
+  const submitSearch = () => {
+    const city = String(loc || "").trim();
+    if (!city) {
+      setError(t("search.validationCity"));
+      return;
+    }
+    if (!isValidDateObj(checkIn) || !isValidDateObj(checkOut)) {
+      setError(t("search.validationDates"));
+      return;
+    }
+    if (checkOut <= checkIn) {
+      setError(t("search.validationOrder"));
+      return;
+    }
+    setError("");
+    onSearch({
+      city,
+      checkIn,
+      checkOut,
+      guests: Math.max(1, Number.parseInt(adults, 10) || 1),
+      rooms: Math.max(1, Number.parseInt(rooms, 10) || 1),
+    });
+  };
 
   return (
-    <div className="search-card" ref={card} role="search" aria-label="Otel arama">
+    <div className="search-card" ref={card} role="search" aria-label={t("search.aria")}>
       {/* Location */}
       <div className="search-cell" onClick={() => {setShowSuggest(true);setShowCalendar(null);setShowGuests(false);}}>
-        <label><IconMapPin size={13} /> Lokasyon</label>
-        <input className="val" type="text" placeholder="Nereye gidiyorsunuz?" value={loc}
-        onChange={(e) => {setLoc(e.target.value);setShowSuggest(true);}}
+        <label><IconMapPin size={13} /> {t("search.location")}</label>
+        <input className="val" type="text" placeholder={t("search.locationPlaceholder")} value={loc}
+        onChange={(e) => {setLoc(e.target.value);setShowSuggest(true);setActiveIdx(0);if (error) setError("");}}
         onFocus={() => setShowSuggest(true)}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {e.preventDefault();setActiveIdx((i) => Math.min(filtered.length - 1, i + 1));}
@@ -94,7 +253,7 @@ function SearchCard({ onSearch }) {
         {showSuggest &&
         <div className="suggest">
             <div style={{ padding: "6px 12px 4px", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".12em", color: "var(--muted)", textTransform: "uppercase" }}>
-              {loc ? "Sonuçlar" : "Popüler Aramalar"}
+              {loc ? t("search.results") : t("search.popular")}
             </div>
             {filtered.map((d, i) =>
           <div key={d.name} className={`suggest-item ${i === activeIdx ? "active" : ""}`}
@@ -107,7 +266,7 @@ function SearchCard({ onSearch }) {
               </div>
           )}
             {filtered.length === 0 &&
-          <div className="suggest-item" style={{ color: "var(--muted)" }}>Sonuç yok — başka bir lokasyon deneyin</div>
+          <div className="suggest-item" style={{ color: "var(--muted)" }}>{t("search.noResult")}</div>
           }
           </div>
         }
@@ -115,9 +274,9 @@ function SearchCard({ onSearch }) {
 
       {/* Check-in */}
       <div className="search-cell" onClick={() => {setShowCalendar("in");setShowSuggest(false);setShowGuests(false);}}>
-        <label><IconCalendar size={13} /> Giriş</label>
+        <label><IconCalendar size={13} /> {t("search.checkIn")}</label>
         <div className="val">{fmtDate(checkIn)}</div>
-        <div className="sub">{nights} gece</div>
+        <div className="sub">{nights} {t("search.night")}</div>
         {showCalendar === "in" &&
         <Calendar value={checkIn} min={t0} onChange={(d) => {
           setCheckIn(d);if (d >= checkOut) setCheckOut(addDays(d, 1));
@@ -128,7 +287,7 @@ function SearchCard({ onSearch }) {
 
       {/* Check-out */}
       <div className="search-cell" onClick={() => {setShowCalendar("out");setShowSuggest(false);setShowGuests(false);}}>
-        <label><IconCalendar size={13} /> Çıkış</label>
+        <label><IconCalendar size={13} /> {t("search.checkOut")}</label>
         <div className="val">{fmtDate(checkOut)}</div>
         <div className="sub">{fmtDate(checkIn)} → {fmtDate(checkOut)}</div>
         {showCalendar === "out" &&
@@ -138,25 +297,26 @@ function SearchCard({ onSearch }) {
 
       {/* Guests */}
       <div className="search-cell" onClick={() => {setShowGuests(true);setShowSuggest(false);setShowCalendar(null);}}>
-        <label><IconUsers size={13} /> Misafir</label>
-        <div className="val">{adults + children} kişi · {rooms} oda</div>
-        <div className="sub">{adults} yetişkin · {children} çocuk</div>
+        <label><IconUsers size={13} /> {t("search.guest")}</label>
+        <div className="val">{adults + children} {t("search.person")} · {rooms} {t("search.room")}</div>
+        <div className="sub">{adults} {t("search.adult")} · {children} {t("search.child")}</div>
         {showGuests &&
         <div className="guest-pop" onClick={(e) => e.stopPropagation()}>
             <Stepper label="Yetişkin" sub="13+ yaş" val={adults} min={1} onChange={setAdults} />
             <Stepper label="Çocuk" sub="0–12 yaş" val={children} min={0} onChange={setChildren} />
             <Stepper label="Oda" sub="" val={rooms} min={1} max={6} onChange={setRooms} />
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-              <button className="btn btn-ghost" style={{ height: 34, padding: "0 14px", fontSize: 13 }} onClick={() => setShowGuests(false)}>Tamam</button>
+              <button className="btn btn-ghost" style={{ height: 34, padding: "0 14px", fontSize: 13 }} onClick={() => setShowGuests(false)}>{t("search.done")}</button>
             </div>
           </div>
         }
       </div>
 
       <div className="search-go">
-        <button className="btn btn-cta" onClick={() => onSearch({ loc, checkIn, checkOut, adults, children, rooms })}>
-          <IconSearch size={16} /> Otel Ara
+        <button className="btn btn-cta" onClick={submitSearch}>
+          <IconSearch size={16} /> {t("search.searchHotel")}
         </button>
+        {error && <div className="sub" style={{ color: "var(--error)", marginTop: 8, textAlign: "center" }}>{error}</div>}
       </div>
     </div>);
 
@@ -234,6 +394,7 @@ function Calendar({ value, min, onChange }) {
 
 // ── Hero ──────────────────────────────────────────────────────────────
 function Hero({ headline, onSearch }) {
+  const { t } = useI18n(APP_I18N);
   const split = headline.split(" ");
   const last = split.pop();
   const rest = split.join(" ");
@@ -243,9 +404,9 @@ function Hero({ headline, onSearch }) {
       <div className="hero-overlay" />
       <div className="hero-marker">[ bakoda · 2026 ]</div>
       <div className="container hero-content">
-        <div className="hero-eyebrow"><i></i> 50.000+ Seçilmiş Konaklama</div>
+        <div className="hero-eyebrow"><i></i> {t("hero.eyebrow")}</div>
         <h1 className="hero-title">{rest} <em>{last}</em></h1>
-        <p className="hero-sub">Dünya genelinde dikkatle seçilmiş otel ve butik konaklama. Gerçek konuk yorumları, en iyi fiyat garantisi.</p>
+        <p className="hero-sub">{t("hero.sub")}</p>
         <SearchCard onSearch={onSearch} />
       </div>
     </header>);
@@ -254,16 +415,17 @@ function Hero({ headline, onSearch }) {
 
 // ── Destinations ──────────────────────────────────────────────────────
 function Destinations() {
+  const { t, lang } = useI18n(APP_I18N);
   return (
     <section data-screen-label="Destinations">
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">Popüler Destinasyonlar</div>
-            <h2 className="section-title">Trend olan şehirler</h2>
-            <p className="section-sub">Konuklarımızın bu sezon en çok keşfettiği üç durak. Yerel rehberlik, taşıma ve kahvaltı dahil.</p>
+            <div className="section-eyebrow">{t("destinations.eyebrow")}</div>
+            <h2 className="section-title">{t("destinations.title")}</h2>
+            <p className="section-sub">{t("destinations.sub")}</p>
           </div>
-          <a className="btn btn-secondary" href="search-results.html">Tüm destinasyonlar <IconArrow size={14} /></a>
+          <a className="btn btn-secondary" href="search-results.html">{t("destinations.all")} <IconArrow size={14} /></a>
         </div>
 
         <div className="dest-grid">
@@ -277,8 +439,8 @@ function Destinations() {
                 </div>
                 <div className="dest-name">{d.name}</div>
                 <div className="dest-meta">
-                  <span>{new Intl.NumberFormat("tr-TR").format(d.hotels)} otel</span>
-                  <span className="pill">Keşfet →</span>
+                  <span>{new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(d.hotels)} {t("destinations.hotelSuffix")}</span>
+                  <span className="pill">{t("destinations.explore")} →</span>
                 </div>
               </div>
             </a>
@@ -291,6 +453,7 @@ function Destinations() {
 
 // ── Hotel card ────────────────────────────────────────────────────────
 function HotelCard({ h, fav, onFav, onView }) {
+  const { t, lang } = useI18n(APP_I18N);
   return (
     <article className="hotel-card" onClick={onView}>
       <div className="hotel-img">
@@ -298,8 +461,8 @@ function HotelCard({ h, fav, onFav, onView }) {
           ? <img src={h.thumbnail} alt={h.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
           : <img src={`https://picsum.photos/seed/hotel_${h.id}_0/600/400`} alt={h.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
         }
-        {h.featured && <span className="hotel-badge">Öne Çıkan</span>}
-        <button className={`fav ${fav ? "on" : ""}`} type="button" aria-label="Favorilere ekle"
+        {h.featured && <span className="hotel-badge">{t("hotel.featured")}</span>}
+        <button className={`fav ${fav ? "on" : ""}`} type="button" aria-label={t("hotel.addFav")}
         onClick={(e) => {e.stopPropagation();onFav();}}>
           <IconHeart filled={fav} />
         </button>
@@ -307,25 +470,25 @@ function HotelCard({ h, fav, onFav, onView }) {
       <div className="hotel-body">
         <div className="hotel-rating">
           <span className="stars" aria-hidden="true">
-            {[0, 1, 2, 3, 4].map((i) => <IconStar key={i} size={13} filled={i < Math.round(h.rating)} />)}
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => <IconStar key={i} size={13} filled={i < Math.round(h.rating)} />)}
           </span>
-          <b>{h.rating.toFixed(2)}</b>
-          <span className="reviews">({new Intl.NumberFormat("tr-TR").format(h.reviews)} yorum)</span>
+          <b>{h.rating.toFixed(1)}/10</b>
+          <span className="reviews">({new Intl.NumberFormat(lang === "en" ? "en-US" : "tr-TR").format(h.reviews)} {t("hotel.reviews")})</span>
         </div>
         <h3 className="hotel-name">{h.name}</h3>
         <div className="hotel-loc"><IconMapPin size={13} /> {h.city}</div>
         <div className="hotel-amen">
           <span><IconWifi size={14} /> WiFi</span>
-          <span><IconPool size={14} /> Havuz</span>
+          <span><IconPool size={14} /> {t("hotel.pool")}</span>
           <span><IconSpa size={14} /> Spa</span>
-          <span><IconBreakfast size={14} /> Kahvaltı</span>
+          <span><IconBreakfast size={14} /> {t("hotel.breakfast")}</span>
         </div>
         <div className="hotel-foot">
           <div className="hotel-price">
             <b>{fmtMoney(h.price, h.currency)}</b>
-            <span className="per">/ gece</span>
+            <span className="per">{t("hotel.perNight")}</span>
           </div>
-          <button className="btn btn-primary" onClick={(e) => {e.stopPropagation();onView();}}>İncele</button>
+          <button className="btn btn-primary" onClick={(e) => {e.stopPropagation();onView();}}>{t("hotel.inspect")}</button>
         </div>
       </div>
     </article>);
@@ -334,16 +497,17 @@ function HotelCard({ h, fav, onFav, onView }) {
 
 // ── Featured ──────────────────────────────────────────────────────────
 function Featured({ cols, onView }) {
+  const { t } = useI18n(APP_I18N);
   const [favs, setFavs] = useState(new Set());
-  const [hotels, setHotels] = useState([]);
+  const [hotels, setHotels] = useState(HOTELS);
 
   useEffect(() => {
     fetch("/api/hotels?sort=rating&page=1")
       .then(r => r.json())
       .then(d => { if (d.hotels && d.hotels.length) setHotels(d.hotels.slice(0, 6).map(h => ({
         id: h.id, name: h.name, city: `${h.city}${h.district ? ", " + h.district : ""}`,
-        rating: h.rating * 2,  // API 0-5, UI 0-10
-        reviews: h.reviews_count, price: h.price_per_night, currency: "₺",
+        rating: h.rating || 0,
+        reviews: h.reviews_count || 0, price: h.price_per_night, currency: "₺",
         featured: true, ph: "ph-h1", tags: [], note: "",
       }))); })
       .catch(() => {});
@@ -363,11 +527,11 @@ function Featured({ cols, onView }) {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="section-eyebrow">Öne Çıkan Oteller</div>
-            <h2 className="section-title">Editörlerimizin seçimi</h2>
-            <p className="section-sub">Mimarisi, hizmeti ve konumuyla öne çıkan altı konaklama. Her biri editörlerimiz tarafından bizzat ziyaret edildi.</p>
+            <div className="section-eyebrow">{t("featured.eyebrow")}</div>
+            <h2 className="section-title">{t("featured.title")}</h2>
+            <p className="section-sub">{t("featured.sub")}</p>
           </div>
-          <a className="btn btn-secondary" href="search-results.html">Tüm oteller <IconArrow size={14} /></a>
+          <a className="btn btn-secondary" href="search-results.html">{t("featured.allHotels")} <IconArrow size={14} /></a>
         </div>
 
         <div className={`hotel-grid ${cols === 2 ? "cols-2" : ""}`}>
@@ -383,25 +547,25 @@ function Featured({ cols, onView }) {
 }
 
 // ── Why us ────────────────────────────────────────────────────────────
-const WHY = [
-{ ico: IconShield, title: "Güvenli Ödeme", text: "256-bit şifreleme. Kartınız sadece konaklama sırasında işlenir." },
-{ ico: IconTag, title: "En İyi Fiyat", text: "Daha düşük bir fiyat bulursanız aradaki farkı geri ödüyoruz." },
-{ ico: IconHeadset, title: "7/24 Destek", text: "Konuk hizmetleri ekibimiz Türkçe ve İngilizce, gece gündüz hizmetinizde." },
-{ ico: IconRefresh, title: "Ücretsiz İptal", text: "Çoğu rezervasyonda girişe 48 saat kalana dek tam iade." }];
-
-
 function WhyUs() {
+  const { t } = useI18n(APP_I18N);
+  const items = [
+    { ico: IconShield, title: t("why.secure"), text: t("why.secureText") },
+    { ico: IconTag, title: t("why.best"), text: t("why.bestText") },
+    { ico: IconHeadset, title: t("why.support"), text: t("why.supportText") },
+    { ico: IconRefresh, title: t("why.cancel"), text: t("why.cancelText") },
+  ];
   return (
     <section className="why" data-screen-label="Why Us">
       <div className="container">
         <div className="section-head" style={{ marginBottom: 32 }}>
           <div>
-            <div className="section-eyebrow">Neden bakoda</div>
-            <h2 className="section-title">Kaygısız bir konaklama deneyimi</h2>
+            <div className="section-eyebrow">{t("why.eyebrow")}</div>
+            <h2 className="section-title">{t("why.title")}</h2>
           </div>
         </div>
         <div className="why-grid">
-          {WHY.map(({ ico: I, title, text }) =>
+          {items.map(({ ico: I, title, text }) =>
           <div className="why-item" key={title}>
               <div className="why-ico"><I size={22} /></div>
               <h3>{title}</h3>
@@ -442,15 +606,26 @@ function App() {
 
   return (
     <>
-      <Navbar active="Keşfet" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
-      <Hero headline={t.heroHeadline} onSearch={({ loc, checkIn, checkOut, adults, rooms }) => {
+      <Navbar active="nav.explore" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
+      <Hero headline={t.heroHeadline} onSearch={({ city, checkIn, checkOut, guests, rooms }) => {
         const p = new URLSearchParams();
-        if (loc) p.set("city", loc);
-        if (checkIn) p.set("check_in", checkIn.toISOString().slice(0, 10));
-        if (checkOut) p.set("check_out", checkOut.toISOString().slice(0, 10));
-        if (adults > 1) p.set("adults", adults);
-        if (rooms > 1) p.set("rooms", rooms);
-        window.location.href = "search-results.html" + (p.toString() ? "?" + p.toString() : "");
+        const checkInIso = toIsoDate(checkIn);
+        const checkOutIso = toIsoDate(checkOut);
+        p.set("city", city);
+        p.set("location", city);
+        if (checkInIso) p.set("check_in", checkInIso);
+        if (checkOutIso) p.set("check_out", checkOutIso);
+        p.set("guests", String(Math.max(1, Number.parseInt(guests, 10) || 1)));
+        p.set("rooms", String(Math.max(1, Number.parseInt(rooms, 10) || 1)));
+        persistSearchState({
+          city,
+          location: city,
+          check_in: checkInIso,
+          check_out: checkOutIso,
+          guests: Math.max(1, Number.parseInt(guests, 10) || 1),
+          rooms: Math.max(1, Number.parseInt(rooms, 10) || 1),
+        });
+        window.location.assign("search-results.html" + (p.toString() ? "?" + p.toString() : ""));
       }} />
       <Destinations />
       <Featured cols={t.featuredCols} onView={(h) => { window.location.href = "hotel-detail.html?id=" + (h.id || 1); }} />

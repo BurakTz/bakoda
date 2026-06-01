@@ -1,6 +1,6 @@
-// Security — password change, 2FA, sessions
+// Security — password change, account closure (auth required)
 
-const { useState, useRef, useMemo } = React;
+const { useState, useRef, useMemo, useEffect } = React;
 
 const Eye = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -46,47 +46,95 @@ function strengthOf(pw) {
 }
 const LABELS = ["", "Zayıf", "Orta", "Güçlü", "Mükemmel"];
 
-const SESSIONS = [
-  { id: 1, device: "MacBook Pro · Chrome", os: "macOS 14.5", city: "İstanbul, Türkiye", ip: "85.105.20.144", when: "Şu an aktif", current: true,  ico: Desktop },
-  { id: 2, device: "iPhone 15 · Safari",   os: "iOS 17.4",  city: "İstanbul, Türkiye", ip: "85.105.20.145", when: "2 saat önce", current: false, ico: Phone },
-  { id: 3, device: "iPad · Chrome",        os: "iPadOS 17", city: "Ankara, Türkiye",   ip: "78.180.5.211",  when: "3 gün önce", current: false, ico: Tablet },
-  { id: 4, device: "Windows · Edge",       os: "Windows 11",city: "Paris, Fransa",     ip: "92.135.40.18",  when: "2 hafta önce", current: false, ico: Desktop },
-];
+function parseApiDetail(data) {
+  if (!data || !data.detail) return null;
+  if (typeof data.detail === "string") return data.detail;
+  if (Array.isArray(data.detail)) {
+    return data.detail.map((d) => d.msg || d.message || String(d)).join(" ");
+  }
+  return null;
+}
+
+function detectCurrentDevice() {
+  const ua = navigator.userAgent || "";
+  let os = "Bilinmeyen işletim sistemi";
+  if (/Windows/i.test(ua)) os = "Windows";
+  else if (/Mac OS X|Macintosh/i.test(ua)) os = "macOS";
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = /iPad/i.test(ua) ? "iPadOS" : "iOS";
+  else if (/Android/i.test(ua)) os = "Android";
+  else if (/Linux/i.test(ua)) os = "Linux";
+
+  let browser = "Tarayıcı";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/Chrome\//i.test(ua) && !/Edg/i.test(ua)) browser = "Chrome";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+
+  const mobile = /Mobile|Android|iPhone/i.test(ua);
+  const tablet = /iPad|Tablet/i.test(ua);
+  const ico = tablet ? Tablet : mobile ? Phone : Desktop;
+
+  return {
+    id: "current",
+    device: `${browser} · ${mobile ? (tablet ? "Tablet" : "Telefon") : "Masaüstü"}`,
+    os,
+    when: "Şu an aktif",
+    current: true,
+    ico,
+  };
+}
 
 function App() {
-  const [pw, setPw]       = useState({ current: "", next: "", confirm: "" });
-  const [show, setShow]   = useState({ current: false, next: false, confirm: false });
+  const token = localStorage.getItem("bakoda_token");
+  const [authReady, setAuthReady] = useState(!!token);
+
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const [show, setShow] = useState({ current: false, next: false, confirm: false });
   const [errors, setErrors] = useState({});
+  const [pwSaving, setPwSaving] = useState(false);
 
-  const [twoFA, setTwoFA]         = useState(true);
-  const [loginAlerts, setAlerts]  = useState(true);
-  const [newDevice, setNewDevice] = useState(true);
+  const [currentDevice] = useState(() => detectCurrentDevice());
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
-  const [sessions, setSessions] = useState(SESSIONS);
-
-  const [toast, setToast] = useState({ on:false, msg:"" });
+  const [toast, setToast] = useState({ on: false, msg: "" });
   const toastT = useRef(null);
 
   const strength = useMemo(() => strengthOf(pw.next), [pw.next]);
 
+  useEffect(() => {
+    if (!token) {
+      const next = encodeURIComponent("security.html");
+      window.location.replace(`login.html?next=${next}`);
+      return;
+    }
+    setAuthReady(true);
+  }, [token]);
+
   const flash = (msg) => {
-    setToast({ on:true, msg });
+    setToast({ on: true, msg });
     clearTimeout(toastT.current);
-    toastT.current = setTimeout(() => setToast(s => ({...s, on:false})), 2400);
+    toastT.current = setTimeout(() => setToast((s) => ({ ...s, on: false })), 2400);
   };
 
-  const setPwField = (k, v) => { setPw({...pw, [k]: v}); if (errors[k]) setErrors({...errors, [k]: null}); };
+  const setPwField = (k, v) => {
+    setPw({ ...pw, [k]: v });
+    if (errors[k]) setErrors({ ...errors, [k]: null });
+  };
 
   const changePw = async (ev) => {
     ev.preventDefault();
     const e = {};
     if (!pw.current) e.current = "Mevcut şifrenizi girin";
-    if (!pw.next)    e.next    = "Yeni şifrenizi girin";
+    if (!pw.next) e.next = "Yeni şifrenizi girin";
+    else if (pw.next.length < 8) e.next = "Şifre en az 8 karakter olmalı";
     else if (strength < 2) e.next = "Daha güçlü bir şifre seçin";
     if (pw.confirm !== pw.next) e.confirm = "Şifreler eşleşmiyor";
     setErrors(e);
     if (Object.keys(e).length > 0) return;
-    const token = localStorage.getItem("bakoda_token");
+
+    setPwSaving(true);
     try {
       const res = await fetch("/api/users/me/change-password", {
         method: "POST",
@@ -95,22 +143,61 @@ function App() {
       });
       if (res.ok) {
         setPw({ current: "", next: "", confirm: "" });
+        setErrors({});
         flash("Şifreniz güncellendi");
+      } else if (res.status === 401) {
+        window.location.replace("login.html?next=security.html");
       } else {
         const data = await res.json().catch(() => ({}));
-        setErrors({ current: data.detail || "Mevcut şifre yanlış" });
+        const msg = parseApiDetail(data) || (res.status === 400 ? "Mevcut şifre yanlış" : "Şifre güncellenemedi");
+        if (res.status === 422) setErrors({ next: msg });
+        else setErrors({ current: msg });
       }
-    } catch { flash("Bağlantı hatası, tekrar deneyin"); }
+    } catch {
+      flash("Bağlantı hatası, tekrar deneyin");
+    } finally {
+      setPwSaving(false);
+    }
   };
 
-  const revokeSession = (id) => {
-    setSessions(s => s.filter(x => x.id !== id));
-    flash("Oturum sonlandırıldı");
+  const closeAccount = async () => {
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      const res = await fetch("/api/users/me", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 204 || res.ok) {
+        localStorage.removeItem("bakoda_token");
+        localStorage.removeItem("bakoda_user");
+        window.location.replace("index.html");
+        return;
+      }
+      if (res.status === 401) {
+        window.location.replace("login.html?next=security.html");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(parseApiDetail(data) || "Hesap kapatılamadı, tekrar deneyin");
+    } catch {
+      setDeleteError("Bağlantı hatası, tekrar deneyin");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
-  const revokeAll = () => {
-    setSessions(s => s.filter(x => x.current));
-    flash("Tüm diğer oturumlar sonlandırıldı");
-  };
+
+  if (!authReady) {
+    return (
+      <ProfileShell active="security">
+        <div className="card fade-in">
+          <p style={{ color: "var(--muted)", fontSize: 14 }}>Oturum kontrol ediliyor…</p>
+        </div>
+      </ProfileShell>
+    );
+  }
+
+  const Ico = currentDevice.ico;
 
   return (
     <ProfileShell active="security">
@@ -118,35 +205,46 @@ function App() {
         <div className="card-head">
           <div>
             <h1>Güvenlik</h1>
-            <p>Hesabını koru: şifre, iki adımlı doğrulama ve aktif oturumlar.</p>
+            <p>Şifreni güncelle, oturumunu yönet ve hesabını kapat.</p>
           </div>
         </div>
 
-        {/* ── Password change ── */}
         <form onSubmit={changePw}>
           <div className="section-title">Şifre Değiştir</div>
 
           <div className="billing-grid">
             {[
               { id: "current", label: "Mevcut Şifre" },
-              { id: "next",    label: "Yeni Şifre" },
+              { id: "next", label: "Yeni Şifre" },
               { id: "confirm", label: "Yeni Şifre (Tekrar)" },
-            ].map(f => (
+            ].map((f) => (
               <div className={`field ${f.id !== "current" ? "" : "full"}`} key={f.id}>
                 <label htmlFor={f.id}>{f.label}</label>
                 <div className="field-affix">
-                  <input id={f.id} type={show[f.id] ? "text" : "password"} autoComplete="current-password"
-                         className={`input ${errors[f.id] ? "err":""}`}
-                         value={pw[f.id]} onChange={(e) => setPwField(f.id, e.target.value)} />
-                  <button type="button" className="toggle-vis" aria-label={show[f.id] ? "Gizle":"Göster"}
-                          onClick={() => setShow({...show, [f.id]: !show[f.id]})}>
+                  <input
+                    id={f.id}
+                    type={show[f.id] ? "text" : "password"}
+                    autoComplete={f.id === "current" ? "current-password" : "new-password"}
+                    className={`input ${errors[f.id] ? "err" : ""}`}
+                    value={pw[f.id]}
+                    onChange={(e) => setPwField(f.id, e.target.value)}
+                    disabled={pwSaving}
+                  />
+                  <button
+                    type="button"
+                    className="toggle-vis"
+                    aria-label={show[f.id] ? "Gizle" : "Göster"}
+                    onClick={() => setShow({ ...show, [f.id]: !show[f.id] })}
+                  >
                     {show[f.id] ? <EyeOff /> : <Eye />}
                   </button>
                 </div>
                 {f.id === "next" && pw.next && (
                   <div className="pw-strength">
                     <div className="pw-bars">
-                      {[1,2,3,4].map(i => <div key={i} className={`pw-bar ${i <= strength ? `l-${strength}`:""}`} />)}
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className={`pw-bar ${i <= strength ? `l-${strength}` : ""}`} />
+                      ))}
                     </div>
                     <div className="pw-meta">
                       <span>Şifre gücü</span>
@@ -154,86 +252,87 @@ function App() {
                     </div>
                   </div>
                 )}
-                {errors[f.id] && <span style={{ fontSize: 12, color:"var(--error)", marginTop: 2, display:"inline-flex", alignItems:"center", gap: 5 }}><IconClose size={11} /> {errors[f.id]}</span>}
+                {errors[f.id] && (
+                  <span style={{ fontSize: 12, color: "var(--error)", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <IconClose size={11} /> {errors[f.id]}
+                  </span>
+                )}
               </div>
             ))}
           </div>
 
           <div className="save-row">
-            <button type="submit" className="btn btn-cta">
-              <IconCheck size={14} /> Şifreyi Güncelle
+            <a href="forgot-password.html" className="btn btn-ghost" style={{ marginRight: "auto" }}>
+              Şifremi unuttum
+            </a>
+            <button type="submit" className="btn btn-cta" disabled={pwSaving}>
+              <IconCheck size={14} /> {pwSaving ? "Kaydediliyor…" : "Şifreyi Güncelle"}
             </button>
           </div>
         </form>
 
-        {/* ── 2FA + alerts ── */}
-        <div className="section-title">İki Adımlı Doğrulama</div>
-        <div>
-          <div className="pref">
-            <div className="info">
-              <div className="ttl">İki adımlı doğrulama (2FA) {twoFA && <span className="badge">Aktif</span>}</div>
-              <div className="sub">Her girişte SMS veya authenticator uygulaması ile ek bir kod istenir.</div>
-            </div>
-            <button type="button" className="toggle" data-on={twoFA?"1":"0"} role="switch" aria-checked={twoFA} onClick={() => { setTwoFA(!twoFA); flash(twoFA ? "2FA devre dışı bırakıldı" : "2FA etkinleştirildi"); }}><i /></button>
-          </div>
-          <div className="pref">
-            <div className="info">
-              <div className="ttl">Giriş bildirimleri</div>
-              <div className="sub">Hesabına yeni bir cihazdan giriş yapıldığında e-posta gönderilir.</div>
-            </div>
-            <button type="button" className="toggle" data-on={loginAlerts?"1":"0"} role="switch" aria-checked={loginAlerts} onClick={() => setAlerts(!loginAlerts)}><i /></button>
-          </div>
-          <div className="pref">
-            <div className="info">
-              <div className="ttl">Yeni cihaz onayı {!newDevice && <span className="badge warn">Önerilir</span>}</div>
-              <div className="sub">Tanımadığımız bir cihazdan girişte ekstra doğrulama iste.</div>
-            </div>
-            <button type="button" className="toggle" data-on={newDevice?"1":"0"} role="switch" aria-checked={newDevice} onClick={() => setNewDevice(!newDevice)}><i /></button>
-          </div>
+        <div className="section-title">Ek Güvenlik</div>
+        <div className="notice-box">
+          <p>
+            <strong>İki adımlı doğrulama (2FA)</strong> ve uzaktan oturum sonlandırma bu sürümde henüz desteklenmiyor.
+            Oturumlar JWT ile yönetildiği için yalnızca bu cihaz görüntülenir; başka cihazlardan çıkış için şifreni değiştirmen önerilir.
+          </p>
         </div>
 
-        {/* ── Sessions ── */}
-        <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", margin: "28px 0 14px" }}>
-          <div className="section-title" style={{ margin: 0 }}>Aktif Oturumlar</div>
-          {sessions.length > 1 && (
-            <button type="button" className="btn btn-ghost" style={{ height: 34, padding: "0 12px", fontSize: 13 }} onClick={revokeAll}>
-              Diğer tüm oturumları sonlandır
-            </button>
-          )}
-        </div>
+        <div className="section-title" style={{ marginTop: 28 }}>Bu Cihaz</div>
         <div className="sess-list">
-          {sessions.map(s => {
-            const Ico = s.ico;
-            return (
-              <div className={`sess ${s.current?"current":""}`} key={s.id}>
-                <div className="sess-ico"><Ico size={18} /></div>
-                <div className="sess-info">
-                  <div className="device">
-                    {s.device}
-                    {s.current && <span className="now">● Bu cihaz</span>}
-                  </div>
-                  <div className="meta">{s.os} · {s.city} · {s.ip} · {s.when}</div>
-                </div>
-                {!s.current && (
-                  <button type="button" className="revoke" onClick={() => revokeSession(s.id)}>Sonlandır</button>
-                )}
+          <div className="sess current">
+            <div className="sess-ico"><Ico size={18} /></div>
+            <div className="sess-info">
+              <div className="device">
+                {currentDevice.device}
+                <span className="now">● Bu cihaz</span>
               </div>
-            );
-          })}
+              <div className="meta">{currentDevice.os} · {currentDevice.when}</div>
+            </div>
+          </div>
         </div>
+        <p className="sess-hint">
+          Tüm cihazlardan çıkmak için{" "}
+          <a href="login.html" onClick={(e) => { e.preventDefault(); localStorage.removeItem("bakoda_token"); localStorage.removeItem("bakoda_user"); window.location.href = "login.html"; }}>
+            çıkış yap
+          </a>
+          {" "}veya şifreni güncelle.
+        </p>
 
         <div className="danger">
           <div>
             <h3>Hesabı kapat</h3>
-            <p>Hesabını kapattığında tüm aktif rezervasyonlar iptal edilir, kayıtlı kartlar ve adres bilgilerin silinir. Bu işlem geri alınamaz.</p>
+            <p>
+              Hesabın devre dışı bırakılır; aynı e-posta ile tekrar giriş yapamazsın.
+              Aktif rezervasyonların etkilenebilir — devam etmeden önce rezervasyonlarını kontrol et.
+            </p>
           </div>
-          <button type="button" className="btn btn-danger" onClick={() => flash("Hesap kapatma için onay e-postası gönderildi")}>
+          <button type="button" className="btn btn-danger" onClick={() => { setDeleteError(""); setDeleteOpen(true); }}>
             Hesabı Kapat
           </button>
         </div>
       </div>
 
-      <div className={`toast ${toast.on ? "on":""}`} role="status" aria-live="polite">
+      {deleteOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+          <div className="modal">
+            <h3 id="delete-title">Hesabı kapat?</h3>
+            <p>Bu işlem geri alınamaz. Hesabın pasifleştirilir ve oturumun sonlandırılır.</p>
+            {deleteError && <p className="modal-err">{deleteError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" disabled={deleteBusy} onClick={() => setDeleteOpen(false)}>
+                Vazgeç
+              </button>
+              <button type="button" className="btn btn-danger" disabled={deleteBusy} onClick={closeAccount}>
+                {deleteBusy ? "Kapatılıyor…" : "Evet, hesabı kapat"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`toast ${toast.on ? "on" : ""}`} role="status" aria-live="polite">
         <span className="ok">✓</span>{toast.msg}
       </div>
     </ProfileShell>

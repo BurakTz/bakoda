@@ -45,8 +45,12 @@ async def add_favorite(db: AsyncSession, user_id: int, hotel_id: int) -> Favorit
     existing = await db.execute(
         select(Favorite).where(Favorite.user_id == user_id, Favorite.hotel_id == hotel_id)
     )
-    if existing.scalar_one_or_none():
-        return existing.scalar_one_or_none()
+    found = existing.scalar_one_or_none()
+    if found:
+        result = await db.execute(
+            select(Favorite).options(selectinload(Favorite.hotel)).where(Favorite.id == found.id)
+        )
+        return result.scalar_one()
     fav = Favorite(user_id=user_id, hotel_id=hotel_id)
     db.add(fav)
     await db.commit()

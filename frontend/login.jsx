@@ -103,7 +103,9 @@ function App() {
       localStorage.setItem("bakoda_token", data.access_token);
       localStorage.setItem("bakoda_user", JSON.stringify(data.user));
       flash("Giriş başarılı, yönlendiriliyorsunuz…");
-      setTimeout(() => { window.location.href = "index.html"; }, 900);
+      const nextParam = new URLSearchParams(window.location.search).get("next");
+      const redirectTo = nextParam && /^[a-z0-9-]+\.html$/i.test(nextParam) ? nextParam : "index.html";
+      setTimeout(() => { window.location.href = redirectTo; }, 900);
     } catch { flash("Bağlantı hatası. Tekrar deneyin."); setSubmitting(false); }
   };
 
@@ -200,7 +202,7 @@ function App() {
             </div>
 
             <div className="legal">
-              Giriş yaparak <a href="#">Kullanım Şartları</a> ve <a href="#">Gizlilik Politikası</a>'nı kabul etmiş olursunuz.
+              Giriş yaparak <a href="about.html">Kullanım Şartları</a> ve <a href="about.html">Gizlilik Politikası</a>'nı kabul etmiş olursunuz.
             </div>
           </div>
         </section>

@@ -3,9 +3,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.models import User
-from src.schemas import BookingListOut, ChangePasswordIn, FavoriteOut, UserOut, UserUpdate
+from src.schemas import (
+    BillingAddressOut,
+    BillingAddressUpdate,
+    BookingListOut,
+    ChangePasswordIn,
+    FavoriteOut,
+    SavedCardCreate,
+    SavedCardOut,
+    SavedCardUpdate,
+    UserOut,
+    UserUpdate,
+)
 from src.services.auth_service import get_current_user, hash_password, verify_password
-from src.services import user_service
+from src.services import user_service, payment_method_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -31,9 +42,9 @@ async def change_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not verify_password(payload.current_password, current_user.hashed_password):
+    if not verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Mevcut şifre yanlış")
-    current_user.hashed_password = hash_password(payload.new_password)
+    current_user.password_hash = hash_password(payload.new_password)
     await db.commit()
     return {"message": "Şifre güncellendi"}
 
@@ -93,3 +104,92 @@ async def remove_favorite(
     removed = await user_service.remove_favorite(db, current_user.id, hotel_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Favori bulunamadı")
+
+
+@router.get("/me/payment-methods", response_model=list[SavedCardOut])
+async def list_payment_methods(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cards = await payment_method_service.list_cards(db, current_user.id)
+    return [SavedCardOut(**payment_method_service.card_to_out(c)) for c in cards]
+
+
+@router.post("/me/payment-methods", response_model=SavedCardOut, status_code=201)
+async def add_payment_method(
+    payload: SavedCardCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    card = await payment_method_service.create_card(
+        db, current_user.id, payload.model_dump()
+    )
+    return SavedCardOut(**payment_method_service.card_to_out(card))
+
+
+@router.put("/me/payment-methods/{card_id}", response_model=SavedCardOut)
+async def update_payment_method(
+    card_id: int,
+    payload: SavedCardUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    card = await payment_method_service.update_card(
+        db, current_user.id, card_id, payload.model_dump(exclude_none=True)
+    )
+    if not card:
+        raise HTTPException(status_code=404, detail="Kart bulunamadı")
+    return SavedCardOut(**payment_method_service.card_to_out(card))
+
+
+@router.post("/me/payment-methods/{card_id}/default", response_model=SavedCardOut)
+async def set_default_payment_method(
+    card_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    card = await payment_method_service.set_default_card(db, current_user.id, card_id)
+    if not card:
+        raise HTTPException(status_code=400, detail="Kart bulunamadı veya süresi dolmuş")
+    return SavedCardOut(**payment_method_service.card_to_out(card))
+
+
+@router.delete("/me/payment-methods/{card_id}", status_code=204)
+async def delete_payment_method(
+    card_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    removed = await payment_method_service.delete_card(db, current_user.id, card_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Kart bulunamadı")
+
+
+@router.get("/me/billing-address", response_model=BillingAddressOut)
+async def get_billing_address(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    billing = await payment_method_service.get_billing(db, current_user.id)
+    if not billing:
+        return BillingAddressOut(
+            name=f"{current_user.first_name} {current_user.last_name}".strip(),
+            line="",
+            district="",
+            city="",
+            zip_code="",
+            country="Türkiye",
+        )
+    return BillingAddressOut.model_validate(billing)
+
+
+@router.put("/me/billing-address", response_model=BillingAddressOut)
+async def update_billing_address(
+    payload: BillingAddressUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    billing = await payment_method_service.upsert_billing(
+        db, current_user.id, payload.model_dump(exclude_none=True)
+    )
+    return BillingAddressOut.model_validate(billing)

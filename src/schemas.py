@@ -46,6 +46,34 @@ class ReviewOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ReviewCreate(BaseModel):
+    rating: float
+    title: str | None = None
+    text: str
+
+    @field_validator("rating")
+    @classmethod
+    def rating_range(cls, v: float) -> float:
+        if v < 1 or v > 10:
+            raise ValueError("rating must be between 1 and 10")
+        return v
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("text must not be empty")
+        return v.strip()
+
+    @field_validator("title")
+    @classmethod
+    def title_trim(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        return cleaned or None
+
+
 class HotelOut(BaseModel):
     id: int
     name: str
@@ -222,6 +250,91 @@ class FavoriteOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Payment method schemas ────────────────────────────────────────────────────
+
+class SavedCardOut(BaseModel):
+    id: int
+    brand: str
+    last4: str
+    holder_name: str
+    exp_month: int
+    exp_year: int
+    card_type: str
+    is_default: bool
+    expired: bool = False
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SavedCardCreate(BaseModel):
+    brand: str
+    last4: str
+    holder_name: str
+    exp_month: int
+    exp_year: int
+    card_type: str = "Kredi"
+    is_default: bool = False
+
+    @field_validator("last4")
+    @classmethod
+    def last4_digits(cls, v: str) -> str:
+        cleaned = v.strip()
+        if len(cleaned) != 4 or not cleaned.isdigit():
+            raise ValueError("last4 must be 4 digits")
+        return cleaned
+
+    @field_validator("brand")
+    @classmethod
+    def brand_allowed(cls, v: str) -> str:
+        allowed = {"visa", "mc", "amex", "troy"}
+        if v not in allowed:
+            raise ValueError("invalid card brand")
+        return v
+
+    @field_validator("exp_month")
+    @classmethod
+    def month_range(cls, v: int) -> int:
+        if v < 1 or v > 12:
+            raise ValueError("exp_month must be 1-12")
+        return v
+
+    @field_validator("exp_year")
+    @classmethod
+    def year_range(cls, v: int) -> int:
+        if v < 0 or v > 99:
+            raise ValueError("exp_year must be 0-99")
+        return v
+
+
+class SavedCardUpdate(BaseModel):
+    holder_name: str | None = None
+    exp_month: int | None = None
+    exp_year: int | None = None
+    card_type: str | None = None
+    is_default: bool | None = None
+
+
+class BillingAddressOut(BaseModel):
+    name: str
+    line: str
+    district: str
+    city: str
+    zip_code: str
+    country: str
+
+    model_config = {"from_attributes": True}
+
+
+class BillingAddressUpdate(BaseModel):
+    name: str | None = None
+    line: str | None = None
+    district: str | None = None
+    city: str | None = None
+    zip_code: str | None = None
+    country: str | None = None
 
 
 # ── Health schema ─────────────────────────────────────────────────────────────

@@ -2,17 +2,6 @@
 
 const { useState, useRef, useEffect } = React;
 
-const FAVS = [
-  { id: 1, name: "Çırağan Palace Suites",     city: "İstanbul, Beşiktaş",  stars: 5, rating: 9.4, reviews: 1284, price: 8400, ph: "ph-f1", note: "luxe · waterfront" },
-  { id: 2, name: "Villa Ananda Ubud",          city: "Bali, Ubud",          stars: 5, rating: 9.5, reviews: 318,  price: 11200, ph: "ph-f2", note: "retreat · jungle" },
-  { id: 3, name: "Maison Lumière Marais",      city: "Paris, 3. Bölge",     stars: 4, rating: 8.7, reviews: 642,  price: 4200, ph: "ph-f3", note: "boutique · marais" },
-  { id: 4, name: "The Cappadocia Cave Resort", city: "Nevşehir, Ürgüp",     stars: 5, rating: 8.9, reviews: 891,  price: 6200, ph: "ph-f4", note: "stone · honey" },
-  { id: 5, name: "Hôtel Aubépine Rive Gauche", city: "Paris, 6. Bölge",     stars: 4, rating: 8.6, reviews: 412,  price: 3650, ph: "ph-f5", note: "atelier · garden" },
-  { id: 6, name: "Casa Solana Riviera",        city: "Antalya, Kalkan",     stars: 4, rating: 8.7, reviews: 524,  price: 5800, ph: "ph-f6", note: "terracotta · sea" },
-  { id: 7, name: "Bosphorus Bay Hotel",        city: "İstanbul, Tarabya",   stars: 5, rating: 9.1, reviews: 642,  price: 6400, ph: "ph-f7", note: "modern · sea" },
-  { id: 8, name: "Hammam Heritage Sultanahmet",city: "İstanbul, Sultanahmet",stars: 4,rating: 8.9, reviews: 1521, price: 2800, ph: "ph-f8", note: "stone · old city" },
-];
-
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
 
 function FavCard({ f, removing, onRemove, onView }) {
@@ -37,7 +26,7 @@ function FavCard({ f, removing, onRemove, onView }) {
           <span className="stars" aria-hidden="true">
             {Array.from({length: f.stars}).map((_, i) => <IconStar key={i} size={11} filled />)}
           </span>
-          <b>{f.rating.toFixed(1)}</b>
+          <b>{f.rating.toFixed(1)}/10</b>
           <span className="reviews">({new Intl.NumberFormat("tr-TR").format(f.reviews)})</span>
         </div>
         <h3 className="fav-name">{f.name}</h3>
@@ -69,7 +58,8 @@ function App() {
         if (Array.isArray(data)) setFavs(data.map(f => ({
           id: f.hotel.id, name: f.hotel.name,
           city: f.hotel.city, district: f.hotel.district || "",
-          stars: f.hotel.stars, rating: f.hotel.rating * 2,
+          stars: f.hotel.stars, rating: f.hotel.rating || 0,
+          reviews: f.hotel.reviews_count || 0,
           price: f.hotel.price_per_night, ph: "ph-h1",
         })));
       })
@@ -92,10 +82,6 @@ function App() {
     }, 320);
   };
 
-  // For demo: a Tweaks-free toggle to view empty state
-  const reset = () => { setFavs(FAVS); setRemoving(new Set()); };
-  const clearAll = () => { setFavs([]); setRemoving(new Set()); };
-
   return (
     <ProfileShell active="favorites">
       <div className="fade-in">
@@ -104,12 +90,6 @@ function App() {
             <h1>Kaydettiğim Oteller {favs.length > 0 && <b>({favs.length})</b>}</h1>
             <p>Daha sonra rezerve etmek üzere işaretlediğin oteller.</p>
           </div>
-          {favs.length > 0 && (
-            <div className="demo-bar" title="Demo görünümü">
-              demo
-              <button onClick={clearAll}>Boş hâli gör</button>
-            </div>
-          )}
         </div>
 
         {favs.length > 0 ? (
@@ -129,7 +109,6 @@ function App() {
               <a href="search-results.html" className="btn btn-cta">
                 Otelleri Keşfet <IconArrow size={14} />
               </a>
-              <button className="btn btn-ghost" onClick={reset}>Demo verileri geri yükle</button>
             </div>
           </div>
         )}

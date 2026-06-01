@@ -1,6 +1,6 @@
 // Profile — Personal Info form
 
-const { useState, useRef } = React;
+const { useState, useRef, useEffect } = React;
 
 const COUNTRIES = ["Türkiye","Almanya","Birleşik Krallık","Fransa","İtalya","Yunanistan","Hollanda","Amerika Birleşik Devletleri"];
 const LANGUAGES = ["Türkçe","English","Deutsch","Français","Español"];
@@ -21,18 +21,41 @@ function PrefRow({ ttl, sub, on, onChange }) {
 }
 
 function App() {
+  const token = localStorage.getItem("bakoda_token");
   const [form, setForm] = useState({
     firstName: USER.firstName, lastName: USER.lastName,
-    email: USER.email, phone: "555 123 45 67",
-    birthday: "1992-04-15", gender: "Belirtmek istemiyorum",
+    email: USER.email, phone: "",
+    birthday: "", gender: "Belirtmek istemiyorum",
     country: "Türkiye",
     language: "Türkçe", currency: "TRY ₺",
     emailNotif: true, smsNotif: false, dealsNotif: true, marketingNotif: false,
   });
+  const [loading, setLoading] = useState(!!token);
   const [errors, setErrors] = useState({});
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
+
+  useEffect(() => {
+    if (!token) { setLoading(false); return; }
+    fetch("/api/users/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return;
+        setForm((prev) => ({
+          ...prev,
+          firstName: data.first_name || prev.firstName,
+          lastName: data.last_name || prev.lastName,
+          email: data.email || prev.email,
+          phone: data.phone || "",
+          birthday: data.birthday || "",
+          gender: data.gender || prev.gender,
+          country: data.country === "TR" ? "Türkiye" : (data.country || prev.country),
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
 
   const set = (k, v) => { setForm({...form, [k]: v}); setDirty(true); if (errors[k]) setErrors({...errors, [k]: null}); };
 
@@ -75,6 +98,10 @@ function App() {
   return (
     <ProfileShell active="personal">
       <form className="card fade-in" onSubmit={save} noValidate>
+        {loading ? (
+          <p style={{ color: "var(--muted)", fontSize: 14 }}>Profil yükleniyor…</p>
+        ) : (
+        <>
         <div className="card-head">
           <div>
             <h1>Kişisel Bilgiler</h1>
@@ -193,6 +220,8 @@ function App() {
             Hesabı Kapat
           </button>
         </div>
+        </>
+        )}
       </form>
 
       <div className={`toast ${toast.on ? "on":""}`} role="status" aria-live="polite">

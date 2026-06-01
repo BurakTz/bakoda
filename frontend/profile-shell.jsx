@@ -19,9 +19,9 @@
 })();
 
 const USER = window.PROFILE_USER || {
-  firstName: "Selin",
-  lastName:  "Karaca",
-  email:     "selin@ornek.com",
+  firstName: "Misafir",
+  lastName:  "",
+  email:     "",
   memberSince: "Ocak 2024",
   avatarTone: 1,
 };
@@ -62,7 +62,7 @@ function ProfileShell({ active, children }) {
 }
 
 function ProfileSidebar({ active }) {
-  const initials = (USER.firstName[0] + USER.lastName[0]).toUpperCase();
+  const initials = `${USER.firstName?.[0] || "M"}${USER.lastName?.[0] || "U"}`.toUpperCase();
   return (
     <aside className="profile-sidebar" aria-label="Profil menüsü">
       <div className="sb-user">

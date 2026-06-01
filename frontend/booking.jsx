@@ -1,50 +1,94 @@
-// Booking flow — 3 step (Bilgiler → Ödeme → Onay)
+// Booking flow — Step 1 (Bilgiler)
 
 const { useState, useRef, useEffect, useMemo } = React;
-
-// URL parametrelerinden gelen rezervasyon verisini oku
-const _p = new URLSearchParams(window.location.search);
-const _parseDate = (s) => { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d; };
-const _t0 = new Date(); _t0.setHours(0,0,0,0);
-
-let BOOKING = {
-  hotel: "Yükleniyor…",
-  district: "",
-  stars: 5,
-  thumb: "[ otel ]",
-  checkIn:  _parseDate(_p.get("check_in"))  || new Date(_t0.getTime() + 7*86400000),
-  checkOut: _parseDate(_p.get("check_out")) || new Date(_t0.getTime() + 10*86400000),
-  adults: parseInt(_p.get("adults") || "2"),
-  rooms: parseInt(_p.get("rooms") || "1"),
-  roomType: "Oda",
-  pricePerNight: 0,
-  discountPct: 8,
-  cleaning: 500,
-  roomId: parseInt(_p.get("room_id") || "0"),
-  hotelId: parseInt(_p.get("hotel_id") || "1"),
+const BOOKING_I18N = {
+  tr: {
+    step: { step: "Adım", info: "Bilgiler", payment: "Ödeme", confirm: "Onay" },
+    nav: { home: "Anasayfa", booking: "Rezervasyon" },
+    guest: { title: "Misafir Bilgileri", lead: "Rezervasyon onayı bu bilgilere gönderilecek. Pasaport veya kimlik bilgileri otelde check-in sırasında alınır.", continue: "Ödemeye Geç", back: "Otel sayfasına dön" },
+    payment: { title: "Ödeme", lead: "Rezervasyonunuz hemen onaylanır. Ücret, otele giriş yapana kadar kartınızdan çekilmez.", card: "Kredi Kartı", payHotel: "Otelde Öde", back: "Bilgilere dön", confirm: "Rezervasyonu Onayla" },
+    toast: { signupRedirect: "Kayıt sayfasına yönlendiriliyorsunuz…" },
+  },
+  en: {
+    step: { step: "Step", info: "Info", payment: "Payment", confirm: "Confirmation" },
+    nav: { home: "Home", booking: "Booking" },
+    guest: { title: "Guest Information", lead: "Your booking confirmation will be sent to these details.", continue: "Continue to Payment", back: "Back to hotel page" },
+    payment: { title: "Payment", lead: "Your booking is confirmed instantly.", card: "Credit Card", payHotel: "Pay at Hotel", back: "Back to info", confirm: "Confirm Booking" },
+    toast: { signupRedirect: "Redirecting to sign up…" },
+  },
 };
 
-// Otel + oda verisini API'dan çek
-(function() {
-  const hotelId = BOOKING.hotelId;
-  if (!hotelId) return;
-  fetch(`/api/hotels/${hotelId}`)
-    .then(r => r.json())
-    .then(data => {
-      if (!data.id) return;
-      BOOKING.hotel = data.name;
-      BOOKING.district = `${data.city}${data.district ? ", " + data.district : ""}`;
-      BOOKING.stars = data.stars;
-      const room = (data.rooms || []).find(r => r.id === BOOKING.roomId) || data.rooms?.[0];
-      if (room) {
-        BOOKING.roomType = room.name || room.type;
-        BOOKING.pricePerNight = room.price_per_night;
-        BOOKING.roomId = room.id;
-        sessionStorage.setItem("bakoda_room_id", room.id);
-      }
-    })
-    .catch(() => {});
-})();
+const BOOKING_CTX_KEY = "bakoda_booking_context";
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DISCOUNT_PCT = 8;
+const CLEANING_FEE = 500;
+
+function safeParse(raw) {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function parsePositiveInt(v, fallback = 0) {
+  const n = Number.parseInt(String(v ?? ""), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function parseIsoDate(value) {
+  const txt = String(value || "").trim();
+  if (!ISO_DATE_RE.test(txt)) return null;
+  const d = new Date(`${txt}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toIsoDate(d) {
+  return d instanceof Date && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
+}
+
+function readBookingContext() {
+  const qs = new URLSearchParams(window.location.search);
+  const stored = safeParse(sessionStorage.getItem(BOOKING_CTX_KEY)) || {};
+  const hotelId = parsePositiveInt(qs.get("hotel_id") || sessionStorage.getItem("bakoda_hotel_id") || stored.hotelId, 0);
+  const roomId = parsePositiveInt(qs.get("room_id") || sessionStorage.getItem("bakoda_room_id") || stored.roomId, 0);
+  const checkIn = parseIsoDate(qs.get("check_in") || sessionStorage.getItem("bakoda_checkin") || stored.checkIn);
+  const checkOut = parseIsoDate(qs.get("check_out") || sessionStorage.getItem("bakoda_checkout") || stored.checkOut);
+  const adults = parsePositiveInt(qs.get("adults") || qs.get("guests") || sessionStorage.getItem("bakoda_adults") || stored.adults, 2);
+  const rooms = parsePositiveInt(qs.get("rooms") || sessionStorage.getItem("bakoda_rooms") || stored.rooms, 1);
+  const errors = [];
+
+  if (!hotelId) errors.push("Otel bilgisi eksik.");
+  if (!roomId) errors.push("Oda bilgisi eksik.");
+  if (!checkIn || !checkOut) errors.push("Giriş/çıkış tarihleri geçersiz.");
+  if (checkIn && checkOut && checkOut <= checkIn) errors.push("Çıkış tarihi giriş tarihinden sonra olmalı.");
+
+  return {
+    hotelId,
+    roomId,
+    checkIn,
+    checkOut,
+    adults,
+    rooms,
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+function persistBookingContext(ctx) {
+  const snapshot = {
+    hotelId: ctx.hotelId,
+    roomId: ctx.roomId,
+    checkIn: toIsoDate(ctx.checkIn),
+    checkOut: toIsoDate(ctx.checkOut),
+    adults: Math.max(1, parsePositiveInt(ctx.adults, 1)),
+    rooms: Math.max(1, parsePositiveInt(ctx.rooms, 1)),
+  };
+  try { sessionStorage.setItem(BOOKING_CTX_KEY, JSON.stringify(snapshot)); } catch {}
+  try { sessionStorage.setItem("bakoda_hotel_id", String(snapshot.hotelId)); } catch {}
+  try { sessionStorage.setItem("bakoda_room_id", String(snapshot.roomId)); } catch {}
+  try { sessionStorage.setItem("bakoda_checkin", snapshot.checkIn); } catch {}
+  try { sessionStorage.setItem("bakoda_checkout", snapshot.checkOut); } catch {}
+  try { sessionStorage.setItem("bakoda_adults", String(snapshot.adults)); } catch {}
+  try { sessionStorage.setItem("bakoda_rooms", String(snapshot.rooms)); } catch {}
+}
 
 const fmtTL = (n) => "₺ " + new Intl.NumberFormat("tr-TR").format(n);
 const fmtTLcompact = (n) => "₺" + new Intl.NumberFormat("tr-TR").format(n);
@@ -57,24 +101,24 @@ const fmtDateShort = (d) => {
   return `${d.getDate()} ${months[d.getMonth()]}`;
 };
 
-// ── Pricing math ──────────────────────────────────────────────────────
-function usePricing() {
-  return useMemo(() => {
-    const nights = Math.round((BOOKING.checkOut - BOOKING.checkIn) / 86400000);
-    const subtotal = BOOKING.pricePerNight * nights;
-    const discount = Math.round(subtotal * BOOKING.discountPct / 100);
-    const taxable  = subtotal - discount + BOOKING.cleaning;
-    const taxes    = Math.round(taxable * 0.10);
-    const total    = taxable + taxes;
-    return { nights, subtotal, discount, cleaning: BOOKING.cleaning, taxes, total };  }, []);
+function calcPricing(checkIn, checkOut, pricePerNight) {
+  const ms = (checkOut && checkIn) ? (checkOut - checkIn) : 0;
+  const nights = Math.max(1, Math.round(ms / 86400000) || 1);
+  const subtotal = Math.max(0, Number(pricePerNight || 0)) * nights;
+  const discount = Math.round(subtotal * DISCOUNT_PCT / 100);
+  const taxable = subtotal - discount + CLEANING_FEE;
+  const taxes = Math.round(taxable * 0.10);
+  const total = taxable + taxes;
+  return { nights, subtotal, discount, cleaning: CLEANING_FEE, taxes, total };
 }
 
 // ── Stepper ───────────────────────────────────────────────────────────
 function Stepper({ step }) {
+  const { t } = useI18n(BOOKING_I18N);
   const items = [
-    { n: 1, lbl: "Adım 01", ttl: "Bilgiler" },
-    { n: 2, lbl: "Adım 02", ttl: "Ödeme" },
-    { n: 3, lbl: "Adım 03", ttl: "Onay" },
+    { n: 1, lbl: `${t("step.step")} 01`, ttl: t("step.info") },
+    { n: 2, lbl: `${t("step.step")} 02`, ttl: t("step.payment") },
+    { n: 3, lbl: `${t("step.step")} 03`, ttl: t("step.confirm") },
   ];
   return (
     <div className="stepper-wrap">
@@ -102,23 +146,27 @@ function Stepper({ step }) {
 }
 
 // ── Summary card (right sticky) ───────────────────────────────────────
-function Summary() {
-  const p = usePricing();
+function Summary({ booking, hotel }) {
+  const p = useMemo(
+    () => calcPricing(booking.checkIn, booking.checkOut, hotel.pricePerNight),
+    [booking.checkIn, booking.checkOut, hotel.pricePerNight]
+  );
+  const backToHotel = `hotel-detail.html?id=${booking.hotelId}`;
   return (
     <aside className="summary" aria-label="Rezervasyon özeti">
       <div className="summary-head">
         <div className="summary-thumb">
           <div className="ph" />
-          <div className="ph-label">{BOOKING.thumb}</div>
+          <div className="ph-label">[ otel ]</div>
         </div>
         <div className="summary-h">
-          <span className="summary-stars" aria-label={`${BOOKING.stars} yıldız`}>
-            {Array.from({length: BOOKING.stars}).map((_, i) => <IconStar key={i} size={11} filled />)}
+          <span className="summary-stars" aria-label={`${hotel.stars} yıldız`}>
+            {Array.from({ length: hotel.stars }).map((_, i) => <IconStar key={i} size={11} filled />)}
           </span>
-          <div className="summary-name">{BOOKING.hotel}</div>
-          <div className="summary-loc"><IconMapPin size={11} /> {BOOKING.district}</div>
+          <div className="summary-name">{hotel.name}</div>
+          <div className="summary-loc"><IconMapPin size={11} /> {hotel.district}</div>
           <div style={{ fontSize: 11, color: "var(--muted)", fontFamily:"var(--mono)", letterSpacing:".04em" }}>
-            {BOOKING.roomType.toUpperCase()}
+            {(hotel.roomType || "ODA").toUpperCase()}
           </div>
         </div>
       </div>
@@ -129,27 +177,27 @@ function Summary() {
             <div className="ico"><IconCalendar size={15} /></div>
             <div>
               <div className="lbl">Giriş — Çıkış</div>
-              <div className="val">{fmtDateShort(BOOKING.checkIn)} → {fmtDateShort(BOOKING.checkOut)} · {p.nights} gece</div>
+              <div className="val">{fmtDateShort(booking.checkIn)} → {fmtDateShort(booking.checkOut)} · {p.nights} gece</div>
             </div>
-            <button className="change">değiştir</button>
+            <a className="change" href={backToHotel}>değiştir</a>
           </div>
           <div className="stay-row">
             <div className="ico"><IconUsers size={15} /></div>
             <div>
               <div className="lbl">Misafir</div>
-              <div className="val">{BOOKING.adults} yetişkin · {BOOKING.rooms} oda</div>
+              <div className="val">{booking.adults} yetişkin · {booking.rooms} oda</div>
             </div>
-            <button className="change">değiştir</button>
+            <a className="change" href={backToHotel}>değiştir</a>
           </div>
         </div>
 
         <div className="price-rows">
           <div className="row">
-            <span className="label">{p.nights} gece × {fmtTLcompact(BOOKING.pricePerNight)}</span>
+            <span className="label">{p.nights} gece × {fmtTLcompact(hotel.pricePerNight)}</span>
             <span>{fmtTL(p.subtotal)}</span>
           </div>
           <div className="row discount">
-            <span className="label">Mart kampanyası (−%{BOOKING.discountPct})</span>
+            <span className="label">Erken rezervasyon (−%{DISCOUNT_PCT})</span>
             <span>−{fmtTL(p.discount)}</span>
           </div>
           <div className="row">
@@ -165,7 +213,7 @@ function Summary() {
         <div className="total-row">
           <div>
             <div className="sub">Toplam</div>
-            <div className="lbl">3 gece · 2 kişi</div>
+            <div className="lbl">{p.nights} gece · {booking.adults} kişi</div>
           </div>
           <div className="val">{fmtTL(p.total)}</div>
         </div>
@@ -198,7 +246,8 @@ const COUNTRY_CODES = [
   { code: "+49",  flag: "🇩🇪" },
 ];
 
-function GuestStep({ form, setForm, onNext }) {
+function GuestStep({ form, setForm, onNext, backHref, submitError, isSubmitting }) {
+  const { t } = useI18n(BOOKING_I18N);
   const [errors, setErrors] = useState({});
 
   const set = (k, v) => {
@@ -226,28 +275,28 @@ function GuestStep({ form, setForm, onNext }) {
 
   return (
     <form className="form-card fade-in" onSubmit={submit} noValidate>
-      <h1>Misafir Bilgileri</h1>
-      <p className="lead">Rezervasyon onayı bu bilgilere gönderilecek. Pasaport veya kimlik bilgileri otelde check-in sırasında alınır.</p>
+      <h1>{t("guest.title")}</h1>
+      <p className="lead">{t("guest.lead")}</p>
 
       <div className="form-section-title">Ad ve İletişim</div>
       <div className="field-grid">
         <div className="field-col">
           <label htmlFor="firstName">Ad <span className="req">*</span></label>
           <input id="firstName" className={`input ${errors.firstName ? "err":""}`} type="text" autoComplete="given-name"
-                 value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="Selin" />
+                 value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="Adınız" />
           {errors.firstName && <span className="err-msg"><IconX size={11} /> {errors.firstName}</span>}
         </div>
         <div className="field-col">
           <label htmlFor="lastName">Soyad <span className="req">*</span></label>
           <input id="lastName" className={`input ${errors.lastName ? "err":""}`} type="text" autoComplete="family-name"
-                 value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Karaca" />
+                 value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Soyadınız" />
           {errors.lastName && <span className="err-msg"><IconX size={11} /> {errors.lastName}</span>}
         </div>
 
         <div className="field-col">
           <label htmlFor="email">E-posta <span className="req">*</span></label>
           <input id="email" className={`input ${errors.email ? "err":""}`} type="email" autoComplete="email"
-                 value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="selin@ornek.com" />
+                 value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="ornek@eposta.com" />
           {errors.email
             ? <span className="err-msg"><IconX size={11} /> {errors.email}</span>
             : <span className="hint">Rezervasyon onayı bu adrese gönderilir</span>}
@@ -300,7 +349,7 @@ function GuestStep({ form, setForm, onNext }) {
         <label className="check">
           <input type="checkbox" checked={form.terms} onChange={(e) => set("terms", e.target.checked)} />
           <span className="box"><CheckTick /></span>
-          <span><a href="#">Kullanım Şartları</a> ve <a href="#">Gizlilik Politikası</a>'nı okuduğumu kabul ediyorum. <span className="req">*</span></span>
+          <span><a href="about.html">Kullanım Şartları</a> ve <a href="about.html">Gizlilik Politikası</a>'nı okuduğumu kabul ediyorum. <span className="req">*</span></span>
         </label>
         <label className="check">
           <input type="checkbox" checked={form.marketing} onChange={(e) => set("marketing", e.target.checked)} />
@@ -311,9 +360,12 @@ function GuestStep({ form, setForm, onNext }) {
       {errors.terms && <span className="err-msg" style={{ marginTop: 8 }}><IconX size={11} /> {errors.terms}</span>}
 
       <div className="submit-row">
-        <a href="hotel-detail.html" className="back">← Otel sayfasına dön</a>
-        <button type="submit" className="btn btn-cta next">Ödemeye Geç <IconArrow size={16} /></button>
+        <a href={backHref} className="back">← {t("guest.back")}</a>
+        <button type="submit" className="btn btn-cta next" disabled={isSubmitting}>
+          {isSubmitting ? "Kaydediliyor..." : t("guest.continue")} <IconArrow size={16} />
+        </button>
       </div>
+      {submitError && <span className="err-msg" style={{ marginTop: 8 }}><IconX size={11} /> {submitError}</span>}
 
       <div className="trust">
         <span><IconShield size={13} /> SSL şifrelemeli güvenli ödeme</span>
@@ -330,142 +382,14 @@ const CheckTick = () => (
   </svg>
 );
 
-// ── Step 2: Payment ───────────────────────────────────────────────────
-function PaymentStep({ pay, setPay, onBack, onConfirm }) {
-  const [method, setMethod] = useState("card"); // card | pay-at-hotel
-  const [errors, setErrors] = useState({});
-
-  const set = (k, v) => {
-    setPay({ ...pay, [k]: v });
-    if (errors[k]) setErrors({ ...errors, [k]: null });
-  };
-
-  const formatCard = (s) => s.replace(/\D/g, "").slice(0,16).replace(/(.{4})/g, "$1 ").trim();
-  const formatExp  = (s) => {
-    const d = s.replace(/\D/g, "").slice(0,4);
-    return d.length > 2 ? d.slice(0,2) + "/" + d.slice(2) : d;
-  };
-
-  const validate = () => {
-    if (method === "pay-at-hotel") return true;
-    const e = {};
-    if (pay.card.replace(/\s/g,"").length < 16) e.card = "16 haneli kart numarası girin";
-    if (!/^\d{2}\/\d{2}$/.test(pay.exp))         e.exp  = "AA/YY";
-    if (pay.cvv.length < 3)                       e.cvv  = "3-4 hane";
-    if (!pay.name.trim())                         e.name = "Kart üzerindeki isim";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const submit = (ev) => {
-    ev.preventDefault();
-    if (validate()) onConfirm(method);
-  };
-
-  return (
-    <form className="form-card fade-in" onSubmit={submit} noValidate>
-      <h1>Ödeme</h1>
-      <p className="lead">Rezervasyonunuz hemen onaylanır. Ücret, otele giriş yapana kadar kartınızdan çekilmez.</p>
-
-      <div className="pay-tabs" role="tablist">
-        <button type="button" className={`pay-tab ${method==="card"?"active":""}`} onClick={() => setMethod("card")}>
-          <IconShield size={14} /> Kredi Kartı
-        </button>
-        <button type="button" className={`pay-tab ${method==="pay-at-hotel"?"active":""}`} onClick={() => setMethod("pay-at-hotel")}>
-          <IconBell size={14} /> Otelde Öde
-        </button>
-      </div>
-
-      {method === "card" && (
-        <>
-          <div className="form-section-title">Kart Bilgileri</div>
-          <div className="field-grid">
-            <div className="field-col full">
-              <label htmlFor="card">Kart Numarası <span className="req">*</span></label>
-              <div className="input-affix">
-                <span className="ico"><IconShield size={16} /></span>
-                <input id="card" className={`input ${errors.card?"err":""}`} type="text" inputMode="numeric" autoComplete="cc-number"
-                       value={pay.card} onChange={(e) => set("card", formatCard(e.target.value))}
-                       placeholder="0000 0000 0000 0000" maxLength={19} />
-              </div>
-              {errors.card && <span className="err-msg"><IconX size={11} /> {errors.card}</span>}
-            </div>
-            <div className="field-col">
-              <label htmlFor="exp">Son Kullanma <span className="req">*</span></label>
-              <input id="exp" className={`input ${errors.exp?"err":""}`} type="text" inputMode="numeric" autoComplete="cc-exp"
-                     value={pay.exp} onChange={(e) => set("exp", formatExp(e.target.value))} placeholder="AA/YY" maxLength={5} />
-              {errors.exp && <span className="err-msg"><IconX size={11} /> {errors.exp}</span>}
-            </div>
-            <div className="field-col">
-              <label htmlFor="cvv">CVV <span className="req">*</span></label>
-              <input id="cvv" className={`input ${errors.cvv?"err":""}`} type="text" inputMode="numeric" autoComplete="cc-csc"
-                     value={pay.cvv} onChange={(e) => set("cvv", e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="000" maxLength={4} />
-              {errors.cvv && <span className="err-msg"><IconX size={11} /> {errors.cvv}</span>}
-            </div>
-            <div className="field-col full">
-              <label htmlFor="cname">Kart Üzerindeki İsim <span className="req">*</span></label>
-              <input id="cname" className={`input ${errors.name?"err":""}`} type="text" autoComplete="cc-name"
-                     value={pay.name} onChange={(e) => set("name", e.target.value)} placeholder="SELIN KARACA" />
-              {errors.name && <span className="err-msg"><IconX size={11} /> {errors.name}</span>}
-            </div>
-          </div>
-        </>
-      )}
-
-      {method === "pay-at-hotel" && (
-        <div style={{ padding: "24px 22px", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 12 }}>
-          <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Otelde ödemeyi seçtiniz</h3>
-          <p style={{ color: "var(--muted)", fontSize: 14, margin: 0 }}>
-            Rezervasyon hemen onaylanır. Doğrulama için kart bilgisi vermeyeceksiniz; ücretin tamamı otele girişte alınır.
-            Misafir politikası gereği konaklama tarihine 48 saat kalana kadar ücretsiz iptal hakkınız vardır.
-          </p>
-        </div>
-      )}
-
-      <div className="submit-row">
-        <button type="button" className="back btn btn-ghost" onClick={onBack} style={{ height: 'auto', padding: '6px 8px' }}>← Bilgilere dön</button>
-        <button type="submit" className="btn btn-cta next">
-          Rezervasyonu Onayla <IconArrow size={16} />
-        </button>
-      </div>
-
-      <div className="trust">
-        <span><IconShield size={13} /> 256-bit SSL şifreleme</span>
-        <span><IconRefresh size={13} /> 48 saat öncesine kadar ücretsiz iptal</span>
-      </div>
-    </form>
-  );
-}
-
-// ── Step 3: Confirmation ──────────────────────────────────────────────
-function ConfirmStep({ form, method }) {
-  const code = "BKD-" + Math.random().toString(36).slice(2, 6).toUpperCase() + "-2026";
+function ErrorCard({ title, message, primaryHref, primaryLabel, secondaryHref, secondaryLabel, onRetry }) {
   return (
     <div className="form-card fade-in">
-      <div className="step-pad">
-        <div className="ico ok"><IconCheck size={32} /></div>
-        <h2>Rezervasyon onaylandı</h2>
-        <p>
-          Teşekkürler {form.firstName || "değerli misafirimiz"}! Rezervasyon detaylarınızı <b style={{ color:"var(--text)" }}>{form.email || "e-posta adresinize"}</b> gönderdik. Otel hazırlıkları başlatıldı.
-        </p>
-        <div className="conf-meta">
-          <div className="item">
-            <div className="lbl">Onay Kodu</div>
-            <div className="val" style={{ fontFamily: "var(--mono)", letterSpacing: ".04em" }}>{code}</div>
-          </div>
-          <div className="item">
-            <div className="lbl">Giriş</div>
-            <div className="val">{fmtDate(BOOKING.checkIn)}</div>
-          </div>
-          <div className="item">
-            <div className="lbl">Ödeme</div>
-            <div className="val">{method === "card" ? "Kredi Kartı" : "Otelde"}</div>
-          </div>
-        </div>
-        <div className="conf-actions">
-          <button className="btn btn-primary" onClick={() => alert("PDF makbuz indirmek için: gerçek implementasyon")}>Makbuzu İndir</button>
-          <a href="index.html" className="btn btn-secondary">Anasayfaya Dön</a>
-        </div>
+      <h1 style={{ marginBottom: 8 }}>{title}</h1>
+      <p className="lead" style={{ marginBottom: 18 }}>{message}</p>
+      <div className="submit-row" style={{ marginTop: 0 }}>
+        {onRetry ? <button className="btn btn-primary" type="button" onClick={onRetry}>Tekrar Dene</button> : <a className="btn btn-primary" href={primaryHref}>{primaryLabel}</a>}
+        <a className="btn btn-secondary" href={secondaryHref}>{secondaryLabel}</a>
       </div>
     </div>
   );
@@ -473,15 +397,27 @@ function ConfirmStep({ form, method }) {
 
 // ── App ───────────────────────────────────────────────────────────────
 function App() {
-  const [step, setStep] = useState(1);
+  const { t } = useI18n(BOOKING_I18N);
+  const [step] = useState(1);
+  const [ctx, setCtx] = useState(() => readBookingContext());
+  const [hotelStatus, setHotelStatus] = useState("loading");
+  const [hotelError, setHotelError] = useState("");
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [hotel, setHotel] = useState({
+    name: "Yükleniyor…",
+    district: "—",
+    stars: 5,
+    roomType: "Oda",
+    pricePerNight: 0,
+  });
   const [form, setForm] = useState({
     firstName: "", lastName: "",
     email: "", country: "+90", phone: "",
     requests: "", arrival: ARRIVAL_TIMES[0], trip: "Tatil",
     terms: false, marketing: true,
   });
-  const [pay, setPay] = useState({ card: "", exp: "", cvv: "", name: "" });
-  const [method, setMethod] = useState("card");
   const [toast, setToast] = useState({ on:false, msg:"" });
   const toastT = useRef(null);
 
@@ -494,18 +430,135 @@ function App() {
   // Scroll to top on step change
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [step]);
 
+  useEffect(() => {
+    persistBookingContext(ctx);
+  }, [ctx]);
+
+  useEffect(() => {
+    const userRaw = localStorage.getItem("bakoda_user");
+    if (!userRaw) return;
+    try {
+      const user = JSON.parse(userRaw);
+      setForm((prev) => ({
+        ...prev,
+        firstName: prev.firstName || user.first_name || "",
+        lastName: prev.lastName || user.last_name || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || "",
+      }));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!ctx.valid) {
+      setHotelStatus("error");
+      setHotelError(ctx.errors.join(" "));
+      return;
+    }
+
+    const controller = new AbortController();
+    setHotelStatus("loading");
+    setHotelError("");
+    fetch(`/api/hotels/${ctx.hotelId}`, { signal: controller.signal })
+      .then(async (r) => {
+        let payload = null;
+        try { payload = await r.json(); } catch {}
+        if (!r.ok) throw new Error(payload?.detail || "Otel bilgisi alınamadı.");
+        return payload;
+      })
+      .then((data) => {
+        const rooms = Array.isArray(data?.rooms) ? data.rooms : [];
+        const selectedRoom = rooms.find((r) => r.id === ctx.roomId) || rooms[0];
+        if (!selectedRoom?.id) throw new Error("Bu otel için uygun oda bulunamadı.");
+        setCtx((prev) => ({ ...prev, roomId: selectedRoom.id }));
+        setHotel({
+          name: data.name || "Otel",
+          district: `${data.city || ""}${data.district ? ", " + data.district : ""}`.trim() || "—",
+          stars: Number.isFinite(data.stars) ? data.stars : 5,
+          roomType: selectedRoom.name || selectedRoom.type || "Oda",
+          pricePerNight: Number(selectedRoom.price_per_night || data.price_per_night || 0),
+        });
+        sessionStorage.setItem("bakoda_room_type", selectedRoom.name || selectedRoom.type || "Oda");
+        setHotelStatus("ready");
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setHotelStatus("error");
+        setHotelError(err?.message || "Otel bilgisi yüklenemedi.");
+      });
+
+    return () => controller.abort();
+  }, [ctx.valid, ctx.hotelId, ctx.roomId, refreshTick]);
+
+  const hotelHref = `hotel-detail.html?id=${ctx.hotelId}`;
+  const createBooking = async () => {
+    if (!ctx.valid || hotelStatus !== "ready") return;
+    const token = localStorage.getItem("bakoda_token");
+    const guestName = `${form.firstName} ${form.lastName}`.trim();
+    setSubmitError("");
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          room_id: ctx.roomId,
+          guest_name: guestName,
+          guest_email: form.email,
+          phone: form.phone,
+          check_in: toIsoDate(ctx.checkIn),
+          check_out: toIsoDate(ctx.checkOut),
+          guests: ctx.adults,
+          rooms_count: ctx.rooms,
+          preferences: form.requests || null,
+          arrival_time: form.arrival || null,
+          trip_type: form.trip || null,
+        }),
+      });
+      let payload = null;
+      try { payload = await res.json(); } catch {}
+      if (!res.ok) throw new Error(payload?.detail || "Rezervasyon oluşturulamadı.");
+
+      sessionStorage.setItem("bakoda_booking_id", String(payload.id));
+      sessionStorage.setItem("bakoda_booking_code", payload.confirmation_code || "");
+      if (payload.confirmation_url) sessionStorage.setItem("bakoda_confirmation_url", payload.confirmation_url);
+      sessionStorage.setItem("bakoda_guest_name", guestName);
+      sessionStorage.setItem("bakoda_guest_email", form.email);
+      sessionStorage.setItem("bakoda_payment_method", "Kart");
+      flash("Rezervasyon oluşturuldu. Ödeme adımına yönlendiriliyorsunuz…");
+
+      const nextQuery = new URLSearchParams({
+        booking_id: String(payload.id),
+        hotel_id: String(ctx.hotelId),
+        room_id: String(ctx.roomId),
+        check_in: toIsoDate(ctx.checkIn),
+        check_out: toIsoDate(ctx.checkOut),
+        adults: String(ctx.adults),
+        rooms: String(ctx.rooms),
+      });
+      window.location.href = `payment.html?${nextQuery.toString()}`;
+    } catch (err) {
+      setSubmitError(err?.message || "Rezervasyon oluşturulamadı. Lütfen tekrar deneyin.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <>
-      <Navbar active="Oteller" onSignup={() => flash("Kayıt sayfasına yönlendiriliyorsunuz…")} />
+      <Navbar active="nav.hotels" onSignup={() => flash(t("toast.signupRedirect"))} />
 
       <div className="page">
         <div className="crumbs">
           <div className="container crumbs-inner">
-            <a href="index.html">Anasayfa</a>
+            <a href="index.html">{t("nav.home")}</a>
             <span className="sep">/</span>
-            <a href="hotel-detail.html">Çırağan Palace Suites</a>
+            <a href={hotelHref}>{hotel.name}</a>
             <span className="sep">/</span>
-            <span className="here">Rezervasyon</span>
+            <span className="here">{t("nav.booking")}</span>
           </div>
         </div>
 
@@ -514,41 +567,45 @@ function App() {
         <div className="container">
           <div className="book-layout">
             <div>
-              {step === 1 && <GuestStep form={form} setForm={setForm} onNext={async () => {
-                const token = localStorage.getItem("bakoda_token");
-                const roomId = Number(sessionStorage.getItem("bakoda_room_id") || "1");
-                const checkIn = sessionStorage.getItem("bakoda_checkin") || BOOKING.checkIn.toISOString().split("T")[0];
-                const checkOut = sessionStorage.getItem("bakoda_checkout") || BOOKING.checkOut.toISOString().split("T")[0];
-                try {
-                  const res = await fetch("/api/bookings", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                    body: JSON.stringify({
-                      room_id: roomId,
-                      guest_name: `${form.firstName} ${form.lastName}`,
-                      guest_email: form.email,
-                      phone: form.phone,
-                      check_in: checkIn,
-                      check_out: checkOut,
-                      guests: BOOKING.adults,
-                      rooms_count: BOOKING.rooms,
-                      preferences: form.requests,
-                      arrival_time: form.arrival,
-                      trip_type: form.trip,
-                    }),
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    sessionStorage.setItem("bakoda_booking_id", data.id);
-                    sessionStorage.setItem("bakoda_booking_code", data.confirmation_code || "");
-                  }
-                } catch {}
-                window.location.href = "payment.html";
-              }} />}
-              {step === 2 && <PaymentStep pay={pay} setPay={setPay} onBack={() => setStep(1)} onConfirm={(m) => { setMethod(m); window.location.href = "confirmation.html"; }} />}
-              {step === 3 && <ConfirmStep form={form} method={method} />}
+              {!ctx.valid && (
+                <ErrorCard
+                  title="Rezervasyon bilgileri eksik"
+                  message={ctx.errors.join(" ") || "Rezervasyon akışı için gerekli bilgiler bulunamadı."}
+                  primaryHref="search-results.html"
+                  primaryLabel="Tekrar otel ara"
+                  secondaryHref="index.html"
+                  secondaryLabel="Anasayfaya dön"
+                />
+              )}
+              {ctx.valid && hotelStatus === "loading" && (
+                <div className="form-card fade-in">
+                  <h1 style={{ marginBottom: 8 }}>Rezervasyon hazırlanıyor</h1>
+                  <p className="lead">Otel ve oda bilgileri yükleniyor…</p>
+                </div>
+              )}
+              {ctx.valid && hotelStatus === "error" && (
+                <ErrorCard
+                  title="Otel bilgisi alınamadı"
+                  message={hotelError || "Lütfen tekrar deneyin."}
+                  primaryHref={hotelHref}
+                  primaryLabel="Otel sayfasına dön"
+                  secondaryHref="search-results.html"
+                  secondaryLabel="Yeni arama yap"
+                  onRetry={() => setRefreshTick((x) => x + 1)}
+                />
+              )}
+              {ctx.valid && hotelStatus === "ready" && (
+                <GuestStep
+                  form={form}
+                  setForm={setForm}
+                  backHref={hotelHref}
+                  onNext={createBooking}
+                  submitError={submitError}
+                  isSubmitting={isSubmitting}
+                />
+              )}
             </div>
-            <Summary />
+            <Summary booking={ctx} hotel={hotel} />
           </div>
         </div>
 

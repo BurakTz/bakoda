@@ -70,7 +70,7 @@ async def sample_hotel(session_factory) -> Hotel:
             city="İstanbul",
             district="Beşiktaş",
             stars=4,
-            rating=4.2,
+            rating=8.4,
             reviews_count=100,
             price_per_night=500.0,
         )
