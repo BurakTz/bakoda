@@ -21,9 +21,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 def _run_alembic_upgrade() -> None:
-    from alembic.config import Config
-
     from alembic import command
+    from alembic.config import Config
 
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", os.environ.get("DATABASE_URL") or settings.database_url)

@@ -65,6 +65,11 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.ruff.lint.isort]
+# Repo kökündeki alembic/ klasörü ruff sürümleri arasında alembic'i
+# first-party/third-party olarak farklı algılatıyor; sabitliyoruz.
+known-third-party = ["alembic"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
