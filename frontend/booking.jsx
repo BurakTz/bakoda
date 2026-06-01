@@ -44,6 +44,29 @@ function toIsoDate(d) {
   return d instanceof Date && !Number.isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : "";
 }
 
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+
+function syncBookingUrl(ctx) {
+  const qs = new URLSearchParams(window.location.search);
+  qs.set("hotel_id", String(ctx.hotelId));
+  qs.set("room_id", String(ctx.roomId));
+  qs.set("check_in", toIsoDate(ctx.checkIn));
+  qs.set("check_out", toIsoDate(ctx.checkOut));
+  qs.set("adults", String(ctx.adults));
+  qs.set("rooms", String(ctx.rooms));
+  const next = `${window.location.pathname}?${qs.toString()}`;
+  window.history.replaceState(null, "", next);
+}
+
+function validateStayDates(checkIn, checkOut) {
+  const t0 = today();
+  if (!checkIn || !checkOut) return "Giriş ve çıkış tarihi seçin.";
+  if (checkIn < t0) return "Giriş tarihi bugünden önce olamaz.";
+  if (checkOut <= checkIn) return "Çıkış tarihi giriş tarihinden sonra olmalı.";
+  return "";
+}
+
 function readBookingContext() {
   const qs = new URLSearchParams(window.location.search);
   const stored = safeParse(sessionStorage.getItem(BOOKING_CTX_KEY)) || {};
@@ -101,15 +124,54 @@ const fmtDateShort = (d) => {
   return `${d.getDate()} ${months[d.getMonth()]}`;
 };
 
-function calcPricing(checkIn, checkOut, pricePerNight) {
+function calcPricing(checkIn, checkOut, pricePerNight, rooms = 1) {
   const ms = (checkOut && checkIn) ? (checkOut - checkIn) : 0;
   const nights = Math.max(1, Math.round(ms / 86400000) || 1);
-  const subtotal = Math.max(0, Number(pricePerNight || 0)) * nights;
+  const roomCount = Math.max(1, parsePositiveInt(rooms, 1));
+  const subtotal = Math.max(0, Number(pricePerNight || 0)) * nights * roomCount;
   const discount = Math.round(subtotal * DISCOUNT_PCT / 100);
   const taxable = subtotal - discount + CLEANING_FEE;
   const taxes = Math.round(taxable * 0.10);
   const total = taxable + taxes;
   return { nights, subtotal, discount, cleaning: CLEANING_FEE, taxes, total };
+}
+
+// ── Mini calendar (hotel-detail ile uyumlu) ───────────────────────────
+function MiniCal({ value, min, onPick }) {
+  const [view, setView] = useState(() => new Date(value.getFullYear(), value.getMonth(), 1));
+  const months = ["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+  const weekdays = ["Pt","Sa","Ça","Pe","Cu","Ct","Pz"];
+  const offset = (new Date(view.getFullYear(), view.getMonth(), 1).getDay() + 6) % 7;
+  const ndays = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < offset; i++) cells.push(null);
+  for (let d = 1; d <= ndays; d++) cells.push(new Date(view.getFullYear(), view.getMonth(), d));
+  return (
+    <div className="cal" onClick={(e) => e.stopPropagation()}>
+      <div className="cal-head">
+        <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}>
+          <IconChevron size={14} style={{ transform: "rotate(90deg)" }} />
+        </button>
+        <div className="title">{months[view.getMonth()]} {view.getFullYear()}</div>
+        <button type="button" onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}>
+          <IconChevron size={14} style={{ transform: "rotate(-90deg)" }} />
+        </button>
+      </div>
+      <div className="cal-wk">{weekdays.map((w) => <div key={w}>{w}</div>)}</div>
+      <div className="cal-days">
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const disabled = min && d < min;
+          const sel = d.toDateString() === value.toDateString();
+          return (
+            <button key={i} type="button" className={`cal-day ${sel ? "sel" : ""}`} disabled={disabled} onClick={() => onPick(d)}>
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ── Stepper ───────────────────────────────────────────────────────────
@@ -146,12 +208,36 @@ function Stepper({ step }) {
 }
 
 // ── Summary card (right sticky) ───────────────────────────────────────
-function Summary({ booking, hotel }) {
+function Summary({ booking, hotel, onDatesChange, datesLoading, dateError }) {
+  const t0 = today();
+  const [datePop, setDatePop] = useState(null);
+  const datesRef = useRef(null);
   const p = useMemo(
-    () => calcPricing(booking.checkIn, booking.checkOut, hotel.pricePerNight),
-    [booking.checkIn, booking.checkOut, hotel.pricePerNight]
+    () => calcPricing(booking.checkIn, booking.checkOut, hotel.pricePerNight, booking.rooms),
+    [booking.checkIn, booking.checkOut, hotel.pricePerNight, booking.rooms]
   );
   const backToHotel = `hotel-detail.html?id=${booking.hotelId}`;
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (datesRef.current && !datesRef.current.contains(e.target)) setDatePop(null);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const applyCheckIn = (d) => {
+    let nextOut = booking.checkOut;
+    if (!nextOut || d >= nextOut) nextOut = addDays(d, 1);
+    onDatesChange(d, nextOut);
+    setDatePop("out");
+  };
+
+  const applyCheckOut = (d) => {
+    onDatesChange(booking.checkIn, d);
+    setDatePop(null);
+  };
+
   return (
     <aside className="summary" aria-label="Rezervasyon özeti">
       <div className="summary-head">
@@ -173,13 +259,63 @@ function Summary({ booking, hotel }) {
 
       <div className="summary-body">
         <div className="stay-rows">
-          <div className="stay-row">
+          <div className={`stay-row dates-edit ${datePop ? "open" : ""}`} ref={datesRef}>
             <div className="ico"><IconCalendar size={15} /></div>
             <div>
               <div className="lbl">Giriş — Çıkış</div>
-              <div className="val">{fmtDateShort(booking.checkIn)} → {fmtDateShort(booking.checkOut)} · {p.nights} gece</div>
+              <div className="val">
+                {fmtDateShort(booking.checkIn)} → {fmtDateShort(booking.checkOut)} · {p.nights} gece
+                {datesLoading && <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: 12 }}>güncelleniyor…</span>}
+              </div>
             </div>
-            <a className="change" href={backToHotel}>değiştir</a>
+            <button
+              type="button"
+              className="change"
+              disabled={datesLoading}
+              onClick={() => setDatePop(datePop ? null : "in")}
+              aria-expanded={!!datePop}
+              aria-controls="stay-dates-pop"
+            >
+              değiştir
+            </button>
+            {datePop && (
+              <div className="stay-dates-pop" id="stay-dates-pop" role="dialog" aria-label="Konaklama tarihlerini değiştir">
+                <div className="stay-dates-fields">
+                  <div
+                    className={`stay-date-field ${datePop === "in" ? "active" : ""}`}
+                    onClick={() => setDatePop("in")}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDatePop("in"); }}
+                  >
+                    <div className="lbl">Giriş</div>
+                    <div className="val">{fmtDate(booking.checkIn)}</div>
+                  </div>
+                  <div
+                    className={`stay-date-field ${datePop === "out" ? "active" : ""}`}
+                    onClick={() => setDatePop("out")}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setDatePop("out"); }}
+                  >
+                    <div className="lbl">Çıkış</div>
+                    <div className="val">{fmtDate(booking.checkOut)}</div>
+                  </div>
+                </div>
+                {datePop === "in" && (
+                  <MiniCal value={booking.checkIn} min={t0} onPick={applyCheckIn} />
+                )}
+                {datePop === "out" && (
+                  <MiniCal value={booking.checkOut} min={addDays(booking.checkIn, 1)} onPick={applyCheckOut} />
+                )}
+                {(dateError || validateStayDates(booking.checkIn, booking.checkOut)) && (
+                  <div className="stay-date-err">
+                    <IconX size={12} />
+                    {dateError || validateStayDates(booking.checkIn, booking.checkOut)}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="stay-row">
             <div className="ico"><IconUsers size={15} /></div>
@@ -432,7 +568,12 @@ function App() {
 
   useEffect(() => {
     persistBookingContext(ctx);
+    if (ctx.valid) syncBookingUrl(ctx);
   }, [ctx]);
+
+  const handleDatesChange = (checkIn, checkOut) => {
+    setCtx((prev) => ({ ...prev, checkIn, checkOut }));
+  };
 
   useEffect(() => {
     const userRaw = localStorage.getItem("bakoda_user");
@@ -456,10 +597,22 @@ function App() {
       return;
     }
 
+    const dateErr = validateStayDates(ctx.checkIn, ctx.checkOut);
+    if (dateErr) {
+      setHotelStatus("error");
+      setHotelError(dateErr);
+      return;
+    }
+
     const controller = new AbortController();
     setHotelStatus("loading");
     setHotelError("");
-    fetch(`/api/hotels/${ctx.hotelId}`, { signal: controller.signal })
+    const params = new URLSearchParams({
+      check_in: toIsoDate(ctx.checkIn),
+      check_out: toIsoDate(ctx.checkOut),
+      guests: String(ctx.adults),
+    });
+    fetch(`/api/hotels/${ctx.hotelId}?${params}`, { signal: controller.signal })
       .then(async (r) => {
         let payload = null;
         try { payload = await r.json(); } catch {}
@@ -468,9 +621,14 @@ function App() {
       })
       .then((data) => {
         const rooms = Array.isArray(data?.rooms) ? data.rooms : [];
-        const selectedRoom = rooms.find((r) => r.id === ctx.roomId) || rooms[0];
-        if (!selectedRoom?.id) throw new Error("Bu otel için uygun oda bulunamadı.");
-        setCtx((prev) => ({ ...prev, roomId: selectedRoom.id }));
+        const selectedRoom = rooms.find((r) => r.id === ctx.roomId);
+        if (!selectedRoom?.id) {
+          throw new Error(
+            rooms.length
+              ? "Seçtiğiniz oda bu tarihlerde müsait değil. Lütfen başka tarih seçin."
+              : "Bu otel için seçilen tarihlerde uygun oda bulunamadı."
+          );
+        }
         setHotel({
           name: data.name || "Otel",
           district: `${data.city || ""}${data.district ? ", " + data.district : ""}`.trim() || "—",
@@ -488,7 +646,15 @@ function App() {
       });
 
     return () => controller.abort();
-  }, [ctx.valid, ctx.hotelId, ctx.roomId, refreshTick]);
+  }, [
+    ctx.valid,
+    ctx.hotelId,
+    ctx.roomId,
+    ctx.adults,
+    toIsoDate(ctx.checkIn),
+    toIsoDate(ctx.checkOut),
+    refreshTick,
+  ]);
 
   const hotelHref = `hotel-detail.html?id=${ctx.hotelId}`;
   const createBooking = async () => {
@@ -605,7 +771,13 @@ function App() {
                 />
               )}
             </div>
-            <Summary booking={ctx} hotel={hotel} />
+            <Summary
+              booking={ctx}
+              hotel={hotel}
+              onDatesChange={handleDatesChange}
+              datesLoading={hotelStatus === "loading"}
+              dateError={hotelStatus === "error" ? hotelError : ""}
+            />
           </div>
         </div>
 

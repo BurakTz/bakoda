@@ -617,7 +617,15 @@ function App() {
   const hotelId = isHotelIdValid ? Number(rawHotelId) : NaN;
 
   const fetchHotelDetail = async (targetHotelId, signal) => {
-    const r = await fetch(`/api/hotels/${targetHotelId}`, { signal });
+    const params = new URLSearchParams();
+    const ci = qs.get("check_in") || sessionStorage.getItem("bakoda_checkin");
+    const co = qs.get("check_out") || sessionStorage.getItem("bakoda_checkout");
+    const adults = qs.get("adults") || qs.get("guests") || sessionStorage.getItem("bakoda_adults");
+    if (ci) params.set("check_in", ci);
+    if (co) params.set("check_out", co);
+    if (adults) params.set("guests", adults);
+    const query = params.toString();
+    const r = await fetch(`/api/hotels/${targetHotelId}${query ? `?${query}` : ""}`, { signal });
     let payload = null;
     try { payload = await r.json(); } catch {}
     if (!r.ok) {

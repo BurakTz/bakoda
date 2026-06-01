@@ -19,6 +19,7 @@ async def list_hotels(
     check_in: date | None = Query(default=None),
     check_out: date | None = Query(default=None),
     guests: int | None = Query(default=None),
+    rooms: int | None = Query(default=None, ge=1),
     price_min: float | None = Query(default=None),
     price_max: float | None = Query(default=None),
     stars: int | None = Query(default=None),
@@ -33,7 +34,7 @@ async def list_hotels(
 
     hotels, total = await hotel_service.search_hotels(
         db, city=location_query, check_in=check_in, check_out=check_out,
-        guests=guests, price_min=price_min, price_max=price_max,
+        guests=guests, rooms=rooms, price_min=price_min, price_max=price_max,
         stars=stars, sort=sort, page=page,
     )
     return {
@@ -44,11 +45,26 @@ async def list_hotels(
 
 
 @router.get("/{hotel_id}", response_model=HotelDetailOut)
-async def get_hotel(hotel_id: int, db: AsyncSession = Depends(get_db)):
-    hotel = await hotel_service.get_hotel_detail(db, hotel_id)
+async def get_hotel(
+    hotel_id: int,
+    check_in: date | None = Query(default=None),
+    check_out: date | None = Query(default=None),
+    guests: int | None = Query(default=None, ge=1),
+    db: AsyncSession = Depends(get_db),
+):
+    if (check_in is None) != (check_out is None):
+        raise HTTPException(status_code=400, detail="Provide both check_in and check_out or neither")
+    if check_in and check_out and check_out <= check_in:
+        raise HTTPException(status_code=400, detail="check_out must be after check_in")
+
+    hotel, available_count = await hotel_service.get_hotel_detail(
+        db, hotel_id, check_in=check_in, check_out=check_out, guests=guests
+    )
     if not hotel:
         raise HTTPException(status_code=404, detail="Otel bulunamadı")
-    return HotelDetailOut.model_validate(hotel)
+    out = HotelDetailOut.model_validate(hotel)
+    out.available_rooms_count = available_count
+    return out
 
 
 @router.post("/{hotel_id}/reviews", response_model=ReviewOut, status_code=201)

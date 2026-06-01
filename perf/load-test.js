@@ -26,7 +26,7 @@ export default function () {
   check(healthRes, { "health ok": (r) => r.status === 200 });
 
   // 2. List available rooms
-  const roomsRes = http.get(`${BASE_URL}/rooms?check_in=2027-07-01&check_out=2027-07-05`);
+  const roomsRes = http.get(`${BASE_URL}/api/rooms?check_in=2027-07-01&check_out=2027-07-05`);
   const roomsOk = check(roomsRes, {
     "rooms status 200": (r) => r.status === 200,
     "rooms is array": (r) => Array.isArray(r.json()),
@@ -50,7 +50,7 @@ export default function () {
   });
 
   const bookingStart = Date.now();
-  const bookingRes = http.post(`${BASE_URL}/bookings`, payload, {
+  const bookingRes = http.post(`${BASE_URL}/api/bookings`, payload, {
     headers: { "Content-Type": "application/json" },
   });
   bookingDuration.add(Date.now() - bookingStart);
@@ -63,7 +63,7 @@ export default function () {
   // 4. Cancel if just created
   if (bookingRes.status === 201) {
     const bookingId = bookingRes.json().id;
-    const cancelRes = http.patch(`${BASE_URL}/bookings/${bookingId}/cancel`);
+    const cancelRes = http.patch(`${BASE_URL}/api/bookings/${bookingId}/cancel`);
     check(cancelRes, { "cancel ok": (r) => r.status === 200 });
   }
 

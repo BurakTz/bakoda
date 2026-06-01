@@ -125,3 +125,47 @@ async def test_verify_wrong_code(client: AsyncClient):
         "code": "000000",
     })
     assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_reset_password_invalid_token_format(client: AsyncClient):
+    resp = await client.post("/api/auth/reset-password", json={
+        "reset_token": "not-valid",
+        "new_password": "NewSecure789",
+    })
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_reset_password_expired_or_unknown_token(client: AsyncClient):
+    resp = await client.post("/api/auth/reset-password", json={
+        "reset_token": "99999:000000",
+        "new_password": "NewSecure789",
+    })
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_reset_password_user_not_found(client: AsyncClient, session_factory):
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import select
+
+    from src.models import PasswordResetCode
+
+    email = "orphan-reset@bakoda.com"
+    async with session_factory() as session:
+        session.add(PasswordResetCode(
+            email=email,
+            code="123456",
+            expires_at=datetime.utcnow() + timedelta(minutes=15),
+        ))
+        await session.commit()
+        result = await session.execute(select(PasswordResetCode).where(PasswordResetCode.email == email))
+        record = result.scalar_one()
+
+    resp = await client.post("/api/auth/reset-password", json={
+        "reset_token": f"{record.id}:123456",
+        "new_password": "NewSecure789",
+    })
+    assert resp.status_code == 404

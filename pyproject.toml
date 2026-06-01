@@ -42,6 +42,11 @@ ruff = "^0.9.0"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+base_url = "http://localhost:8000"
+markers = [
+    "playwright: browser UI tests (pytest-playwright; requires running app)",
+    "localstack: requires LocalStack S3 (S3_ENDPOINT_URL or testcontainers)",
+]
 
 [tool.coverage.run]
 source = ["src"]

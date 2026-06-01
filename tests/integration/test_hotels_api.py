@@ -1,9 +1,11 @@
 import uuid
+from datetime import date
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
-from src.models import Hotel, HotelAmenity, HotelReview, Room, RoomStatus, RoomType
+from src.models import Booking, BookingStatus, Hotel, HotelAmenity, HotelReview, Room, RoomStatus, RoomType
 
 
 @pytest.fixture()
@@ -161,6 +163,20 @@ async def test_get_hotel_not_found(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_get_hotel_detail_requires_both_dates(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get(f"/api/hotels/{istanbul_hotel.id}?check_in=2027-06-01")
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_hotel_detail_invalid_date_range(client: AsyncClient, istanbul_hotel: Hotel):
+    resp = await client.get(
+        f"/api/hotels/{istanbul_hotel.id}?check_in=2027-06-05&check_out=2027-06-01"
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_get_hotel_detail(client: AsyncClient, istanbul_hotel: Hotel):
     resp = await client.get(f"/api/hotels/{istanbul_hotel.id}")
     assert resp.status_code == 200
@@ -183,6 +199,39 @@ async def test_list_hotels_filters_by_guests_capacity(client: AsyncClient, limit
     resp = await client.get("/api/hotels?city=Testopolis&guests=3")
     assert resp.status_code == 200
     assert resp.json()["hotels"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_hotel_detail_filters_rooms_by_availability(
+    client: AsyncClient,
+    session_factory,
+    istanbul_hotel: Hotel,
+):
+    async with session_factory() as session:
+        result = await session.execute(
+            select(Room).where(Room.hotel_id == istanbul_hotel.id)
+        )
+        room = result.scalars().first()
+        session.add(
+            Booking(
+                room_id=room.id,
+                guest_name="Blocker",
+                guest_email="block@test.com",
+                check_in=date(2027, 8, 1),
+                check_out=date(2027, 8, 5),
+                total_price=100.0,
+                status=BookingStatus.confirmed,
+            )
+        )
+        await session.commit()
+
+    resp = await client.get(
+        f"/api/hotels/{istanbul_hotel.id}?check_in=2027-08-01&check_out=2027-08-05"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available_rooms_count"] == 0
+    assert data["rooms"] == []
 
 
 @pytest.mark.asyncio

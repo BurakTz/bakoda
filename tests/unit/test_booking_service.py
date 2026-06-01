@@ -35,18 +35,24 @@ def _booking(**kw) -> Booking:
 
 
 def _db_returning(*rows):
+    """Each row: value for scalar_one_or_none, or int for scalar_one (inventory count)."""
     mock_db = AsyncMock()
-    results = [MagicMock() for _ in rows]
-    for result, row in zip(results, rows):
-        result.scalar_one_or_none.return_value = row
+    results = []
+    for row in rows:
+        result = MagicMock()
+        if isinstance(row, int):
+            result.scalar_one.return_value = row
+        else:
+            result.scalar_one_or_none.return_value = row
+        results.append(result)
     mock_db.execute.side_effect = results
     return mock_db
 
 
 @pytest.mark.asyncio
 async def test_create_booking_success():
-    room = _room()
-    db = _db_returning(room, None)  # room found, no conflict
+    room = _room(hotel_id=10)
+    db = _db_returning(room, None, 3)  # room, no date conflict, 3 rooms available at hotel
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
 
@@ -73,11 +79,34 @@ async def test_create_booking_room_maintenance():
 
 @pytest.mark.asyncio
 async def test_create_booking_date_conflict():
-    room = _room()
+    room = _room(hotel_id=10)
     existing = _booking()
     db = _db_returning(room, existing)  # room found, conflict found
     with pytest.raises(RoomNotAvailableError):
         await create_booking(db, 1, "Ali", "ali@x.com", date(2027, 9, 1), date(2027, 9, 3))
+
+
+@pytest.mark.asyncio
+async def test_create_booking_insufficient_hotel_inventory():
+    room = _room(hotel_id=10)
+    db = _db_returning(room, None, 1)
+    with pytest.raises(RoomNotAvailableError):
+        await create_booking(
+            db, 1, "Ali", "ali@x.com", date(2027, 10, 1), date(2027, 10, 3), rooms_count=2
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_booking_multi_room_price():
+    room = _room(hotel_id=10, price_per_night=100.0)
+    db = _db_returning(room, None, 2)
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+    db.flush = AsyncMock()
+    booking = await create_booking(
+        db, 1, "Ali", "ali@x.com", date(2026, 7, 1), date(2026, 7, 3), rooms_count=2
+    )
+    assert booking.total_price == 400.0
 
 
 @pytest.mark.asyncio

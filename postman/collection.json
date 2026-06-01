@@ -32,7 +32,7 @@
       "name": "List Rooms",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/rooms"
+        "url": "{{baseUrl}}/api/rooms"
       },
       "event": [
         {
@@ -54,9 +54,9 @@
       "request": {
         "method": "GET",
         "url": {
-          "raw": "{{baseUrl}}/rooms?check_in=2027-06-01&check_out=2027-06-05",
+          "raw": "{{baseUrl}}/api/rooms?check_in=2027-06-01&check_out=2027-06-05",
           "host": ["{{baseUrl}}"],
-          "path": ["rooms"],
+          "path": ["api", "rooms"],
           "query": [
             { "key": "check_in", "value": "2027-06-01" },
             { "key": "check_out", "value": "2027-06-05" }
@@ -79,7 +79,7 @@
       "name": "Get Room by ID",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/rooms/{{roomId}}"
+        "url": "{{baseUrl}}/api/rooms/{{roomId}}"
       },
       "event": [
         {
@@ -98,7 +98,7 @@
       "name": "Create Booking",
       "request": {
         "method": "POST",
-        "url": "{{baseUrl}}/bookings",
+        "url": "{{baseUrl}}/api/bookings",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
@@ -126,7 +126,7 @@
       "name": "Get Booking by ID",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/bookings/{{bookingId}}"
+        "url": "{{baseUrl}}/api/bookings/{{bookingId}}"
       },
       "event": [
         {
@@ -145,7 +145,7 @@
       "name": "Cancel Booking",
       "request": {
         "method": "PATCH",
-        "url": "{{baseUrl}}/bookings/{{bookingId}}/cancel"
+        "url": "{{baseUrl}}/api/bookings/{{bookingId}}/cancel"
       },
       "event": [
         {

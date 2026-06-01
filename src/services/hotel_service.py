@@ -70,6 +70,7 @@ async def search_hotels(
     check_in: date | None = None,
     check_out: date | None = None,
     guests: int | None = None,
+    rooms: int | None = None,
     price_min: float | None = None,
     price_max: float | None = None,
     stars: int | None = None,
@@ -78,7 +79,11 @@ async def search_hotels(
     page_size: int = 12,
 ) -> tuple[list[Hotel], int]:
     stmt = select(Hotel)
-    capacity_cond = Room.capacity >= guests if guests else True
+    rooms_needed = max(1, rooms or 1)
+    min_capacity = None
+    if guests:
+        min_capacity = max(1, (guests + rooms_needed - 1) // rooms_needed)
+    capacity_cond = Room.capacity >= min_capacity if min_capacity else True
 
     normalized_location = _normalize_location_term(city) if city else ""
     if normalized_location:
@@ -116,8 +121,8 @@ async def search_hotels(
                 Room.hotel_id.is_not(None),
                 capacity_cond,
             )
-            .distinct()
-            .scalar_subquery()
+            .group_by(Room.hotel_id)
+            .having(func.count(Room.id) >= rooms_needed)
         )
         stmt = stmt.where(Hotel.id.in_(available_hotel_ids))
     elif guests:
@@ -142,15 +147,22 @@ async def search_hotels(
     else:
         stmt = stmt.order_by(Hotel.rating.desc(), Hotel.id.asc())
 
-    count_result = await db.execute(select(Hotel.id).where(stmt.whereclause if stmt.whereclause is not None else True))
-    total = len(count_result.all())
+    count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
+    total = int((await db.execute(count_stmt)).scalar_one() or 0)
 
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return list(result.scalars().all()), total
 
 
-async def get_hotel_detail(db: AsyncSession, hotel_id: int) -> Hotel | None:
+async def get_hotel_detail(
+    db: AsyncSession,
+    hotel_id: int,
+    check_in: date | None = None,
+    check_out: date | None = None,
+    guests: int | None = None,
+) -> tuple[Hotel | None, int | None]:
+    """Return hotel and optional count of rooms available for the given stay."""
     result = await db.execute(
         select(Hotel)
         .options(
@@ -160,7 +172,22 @@ async def get_hotel_detail(db: AsyncSession, hotel_id: int) -> Hotel | None:
         )
         .where(Hotel.id == hotel_id)
     )
-    return result.scalar_one_or_none()
+    hotel = result.scalar_one_or_none()
+    if hotel is None:
+        return None, None
+
+    if check_in and check_out:
+        from src.services import room_service
+
+        available = await room_service.list_available_hotel_rooms(
+            db, hotel_id, check_in, check_out, guests=guests
+        )
+        hotel.rooms = available
+        return hotel, len(available)
+
+    available_now = [r for r in hotel.rooms if r.status == RoomStatus.available]
+    hotel.rooms = available_now
+    return hotel, len(available_now)
 
 
 async def create_hotel_review(

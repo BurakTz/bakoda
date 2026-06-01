@@ -94,6 +94,7 @@ class HotelOut(BaseModel):
 
 class HotelDetailOut(HotelOut):
     rooms: list[RoomOut] = []
+    available_rooms_count: int | None = None
     amenities: list[AmenityOut] = []
     reviews: list[ReviewOut] = []
 
@@ -205,6 +206,13 @@ class BookingCreate(BaseModel):
     preferences: str | None = None
     arrival_time: str | None = None
     trip_type: str | None = None
+
+    @field_validator("guests", "rooms_count")
+    @classmethod
+    def positive_counts(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("must be at least 1")
+        return v
 
     @field_validator("check_out")
     @classmethod

@@ -217,6 +217,30 @@
     .stay-row .change { background: transparent; border: 0; cursor: pointer; color: var(--primary); font-family: var(--mono);
       font-size: 11px; letter-spacing: .04em; padding: 6px 4px; }
     .stay-row .change:hover { text-decoration: underline; text-underline-offset: 3px; }
+    .stay-row.dates-edit { align-items: start; }
+    .stay-row.dates-edit .change:disabled { opacity: .45; cursor: not-allowed; }
+    .stay-dates-pop { grid-column: 1 / -1; margin-top: 10px; background: var(--bg);
+      border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    .stay-dates-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 420px) { .stay-dates-fields { grid-template-columns: 1fr; } }
+    .stay-date-field { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+    .stay-date-field:hover, .stay-date-field.active { border-color: var(--primary); background: var(--primary-10); }
+    .stay-date-field .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+    .stay-date-field .val { font-weight: 500; font-size: 13px; color: var(--text); }
+    .stay-date-err { margin-top: 10px; font-size: 12px; color: var(--error); display: flex; align-items: flex-start; gap: 6px; }
+    .cal { width: 100%; max-width: 280px; margin: 0 auto; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .cal-head .title { font-weight: 600; font-family: var(--display); font-size: 14px; }
+    .cal-head button { width: 28px; height: 28px; border-radius: 8px; border: 0; background: transparent; cursor: pointer; color: var(--text); display: grid; place-items: center; }
+    .cal-head button:hover { background: rgba(15,42,42,.06); }
+    .cal-wk { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 10px; color: var(--muted);
+      text-align: center; font-family: var(--mono); letter-spacing: .06em; margin-bottom: 4px; }
+    .cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .cal-day { height: 32px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+      font: inherit; font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; transition: background .12s; }
+    .cal-day:hover:not(:disabled) { background: var(--primary-10); }
+    .cal-day:disabled { color: var(--muted); opacity: .35; cursor: not-allowed; }
+    .cal-day.sel { background: var(--primary); color: #fff; font-weight: 600; }
 
     .price-rows { display: flex; flex-direction: column; gap: 10px; font-size: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
     .price-rows .row { display: flex; justify-content: space-between; align-items: baseline; color: var(--text); }
