@@ -7,7 +7,6 @@ from src.models import RoomStatus, RoomType
 from src.services.hotel_service import (
     CITY_COUNTRY,
     _city_slug,
-    _destination_image,
     _normalize_location_term,
     create_hotel_review,
     get_hotel_detail,
@@ -22,13 +21,6 @@ def test_city_slug_spaces_to_hyphens():
     assert _city_slug("Rio de Janeiro") == "rio-de-janeiro"
 
 
-def test_destination_image_for_known_and_unknown_cities():
-    url = _destination_image("İstanbul")
-    assert url is not None
-    assert "unsplash.com" in url
-    assert _destination_image("Nonexistent City XYZ") is None
-
-
 def test_city_country_map_has_istanbul():
     assert CITY_COUNTRY.get("İstanbul") == "Türkiye"
 
@@ -41,7 +33,10 @@ def test_normalize_location_strips_and_collapses_spaces():
 async def test_list_destinations_maps_rows():
     mock_db = AsyncMock()
     row_result = MagicMock()
-    row_result.all.return_value = [("İstanbul", 5), ("Paris", 2)]
+    row_result.all.return_value = [
+        ("İstanbul", 5, "hotel_images/istanbul.jpg"),
+        ("Paris", 2, "hotel_images/paris.jpg"),
+    ]
     mock_db.execute.return_value = row_result
 
     destinations = await list_destinations(mock_db, limit=5)
@@ -51,7 +46,7 @@ async def test_list_destinations_maps_rows():
     assert destinations[0]["country"] == "Türkiye"
     assert destinations[0]["hotels"] == 5
     assert destinations[0]["slug"] == "istanbul"
-    assert destinations[0]["image"]
+    assert destinations[0]["image"] == "hotel_images/istanbul.jpg"
 
 
 @pytest.mark.asyncio
