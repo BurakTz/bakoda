@@ -7,14 +7,14 @@ import pytest
 from httpx import AsyncClient
 
 from src.models import Room, RoomStatus, RoomType
+from tests.factories import RoomFactory
 
 
 @pytest.fixture()
 async def book_room(session_factory, sample_hotel) -> Room:
     async with session_factory() as session:
-        r = Room(
+        r = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"M{uuid.uuid4().hex[:6].upper()}",
             type=RoomType.suite,
             capacity=4,
             price_per_night=300.0,
@@ -121,17 +121,15 @@ async def test_backfill_does_not_steal_other_users_orphan(
     check_out_b = (date.today() + timedelta(days=82)).isoformat()
 
     async with session_factory() as session:
-        room_a = Room(
+        room_a = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"A{uuid.uuid4().hex[:6].upper()}",
             type=RoomType.double,
             capacity=2,
             price_per_night=200.0,
             status=RoomStatus.available,
         )
-        room_b = Room(
+        room_b = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"B{uuid.uuid4().hex[:6].upper()}",
             type=RoomType.double,
             capacity=2,
             price_per_night=200.0,

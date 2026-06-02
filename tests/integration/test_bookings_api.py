@@ -1,18 +1,18 @@
-import uuid
 from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
 
 from src.models import Room, RoomStatus, RoomType
+from tests.factories import RoomFactory
 
 
 @pytest.fixture()
 async def book_room(session_factory, sample_hotel) -> Room:
     async with session_factory() as session:
-        r = Room(
+        # Fiyat ve kapasite assert'lere bağlı olduğu için açık kwarg ile sabit.
+        r = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"B{uuid.uuid4().hex[:6].upper()}",
             type=RoomType.suite,
             capacity=4,
             price_per_night=300.0,
@@ -34,6 +34,41 @@ def _s3_patch():
             "src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/presigned"
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_booking_on_factory_generated_room(
+    client: AsyncClient,
+    session_factory,
+    sample_hotel,
+):
+    """Factory Boy + Faker ile üretilen gerçekçi oda üzerinden rezervasyon (201)."""
+    async with session_factory() as session:
+        room = RoomFactory(hotel_id=sample_hotel.id, capacity=4, status=RoomStatus.available)
+        session.add(room)
+        await session.commit()
+        await session.refresh(room)
+        room_id, price = room.id, room.price_per_night
+
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        resp = await client.post(
+            "/api/bookings",
+            json={
+                "room_id": room_id,
+                "guest_name": "Factory Guest",
+                "guest_email": "factory-guest@bakoda.com",
+                "check_in": "2027-12-01",
+                "check_out": "2027-12-04",
+                "guests": 2,
+            },
+        )
+
+    assert resp.status_code == 201
+    # 3 gece × factory'nin ürettiği oda fiyatı
+    assert resp.json()["total_price"] == pytest.approx(price * 3)
 
 
 @pytest.mark.asyncio
@@ -203,9 +238,8 @@ async def test_create_booking_rejects_insufficient_rooms(
     sample_hotel,
 ):
     async with session_factory() as session:
-        lone = Room(
+        lone = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"L{uuid.uuid4().hex[:6].upper()}",
             type=RoomType.double,
             capacity=2,
             price_per_night=200.0,

@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import SavedCard, User
+from src.models import SavedCard
 from src.services.payment_method_service import (
     _card_expired,
     card_to_out,
@@ -14,6 +14,7 @@ from src.services.payment_method_service import (
     set_default_card,
     update_card,
 )
+from tests.factories import UserFactory
 
 
 def test_card_expired_past_year():
@@ -65,8 +66,8 @@ def test_card_to_out_includes_expired_flag():
 
 @pytest.mark.asyncio
 async def test_get_card_returns_none_for_wrong_user(db_session: AsyncSession):
-    user = User(email="cardget@example.com", password_hash="h", first_name="A", last_name="B")
-    other = User(email="othercard@example.com", password_hash="h", first_name="C", last_name="D")
+    user = UserFactory(email="cardget@example.com", first_name="A", last_name="B")
+    other = UserFactory(email="othercard@example.com", first_name="C", last_name="D")
     db_session.add_all([user, other])
     await db_session.commit()
 
@@ -90,7 +91,7 @@ async def test_get_card_returns_none_for_wrong_user(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_update_card_changes_holder(db_session: AsyncSession):
-    user = User(email="cardupd@example.com", password_hash="h", first_name="A", last_name="B")
+    user = UserFactory(email="cardupd@example.com", first_name="A", last_name="B")
     db_session.add(user)
     await db_session.commit()
 
@@ -114,7 +115,7 @@ async def test_update_card_changes_holder(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_set_default_card_rejects_expired(db_session: AsyncSession):
-    user = User(email="expired@example.com", password_hash="h", first_name="A", last_name="B")
+    user = UserFactory(email="expired@example.com", first_name="A", last_name="B")
     db_session.add(user)
     await db_session.commit()
 
@@ -139,7 +140,7 @@ async def test_set_default_card_rejects_expired(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_delete_default_promotes_next_card(db_session: AsyncSession):
-    user = User(email="deldef@example.com", password_hash="h", first_name="A", last_name="B")
+    user = UserFactory(email="deldef@example.com", first_name="A", last_name="B")
     db_session.add(user)
     await db_session.commit()
 

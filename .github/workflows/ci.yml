@@ -87,7 +87,7 @@ jobs:
           --ignore=tests/e2e
 
   docker-smoke-newman:
-    name: Docker, smoke, Newman
+    name: Docker, smoke, Newman, E2E
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -130,6 +130,38 @@ jobs:
 
       - name: Newman Postman collection
         run: newman run postman/collection.json --env-var baseUrl=http://localhost:8000
+
+      # ── Playwright E2E: canlı stack (compose up + seed) üzerinde uçtan uca senaryolar ──
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies (Playwright E2E)
+        run: poetry install --no-interaction --no-ansi
+
+      - name: Install Playwright Chromium
+        run: poetry run playwright install --with-deps chromium
+
+      - name: Playwright E2E tests (live stack)
+        env:
+          BASE_URL: http://localhost:8000
+        run: poetry run pytest tests/e2e -v
+
+      # ── k6 performans regresyon kapısı: canlı stack üzerinde kısa CI profili ──
+      # Threshold (p95<500, error_rate<0.05) ihlalinde k6 non-zero exit eder → adım kırmızı olur.
+      - name: Setup k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: k6 performance gate (CI profile)
+        env:
+          K6_PROFILE: ci
+          BASE_URL: http://localhost:8000
+        run: k6 run perf/load-test.js
 
       - name: Docker Compose down
         if: always()

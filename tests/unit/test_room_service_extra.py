@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.models import Booking, BookingStatus, Room, RoomStatus, RoomType
+from src.models import BookingStatus, RoomStatus, RoomType
 from src.services.room_service import (
     count_available_rooms,
     count_available_rooms_by_hotels,
@@ -11,6 +11,7 @@ from src.services.room_service import (
     list_available_hotel_rooms,
     overlapping_booked_room_ids_subquery,
 )
+from tests.factories import BookingFactory, RoomFactory
 
 
 def test_overlapping_subquery_is_scalar_subquery():
@@ -56,10 +57,9 @@ async def test_count_available_rooms_by_hotels_maps_hotel_ids():
 
 @pytest.mark.asyncio
 async def test_list_available_hotel_rooms_with_guests_filter():
-    room = Room(
+    room = RoomFactory(
         id=5,
         hotel_id=2,
-        room_number="G1",
         type=RoomType.double,
         capacity=3,
         price_per_night=150.0,
@@ -94,9 +94,8 @@ async def test_get_room_not_found():
 async def test_list_available_excludes_overlapping_booking(db_session):
     from src.services.room_service import list_rooms
 
-    room = Room(
+    room = RoomFactory(
         hotel_id=1,
-        room_number="X1",
         type=RoomType.double,
         capacity=2,
         price_per_night=100.0,
@@ -105,7 +104,7 @@ async def test_list_available_excludes_overlapping_booking(db_session):
     db_session.add(room)
     await db_session.flush()
 
-    booking = Booking(
+    booking = BookingFactory(
         room_id=room.id,
         guest_name="Blocker",
         guest_email="b@example.com",

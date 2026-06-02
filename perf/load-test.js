@@ -8,15 +8,26 @@ const BASE_URL = __ENV.BASE_URL || "http://localhost:8000";
 const bookingDuration = new Trend("booking_duration");
 const errorRate = new Rate("error_rate");
 
+// Kısa CI profili (K6_PROFILE=ci) ~35sn; aksi halde mevcut 2 dakikalık profil.
+const CI_PROFILE = __ENV.K6_PROFILE === "ci";
+
+const stages = CI_PROFILE
+  ? [
+      { duration: "10s", target: 10 },   // ramp up (CI)
+      { duration: "20s", target: 20 },   // sustained load (CI)
+      { duration: "5s",  target: 0 },    // ramp down (CI)
+    ]
+  : [
+      { duration: "30s", target: 10 },   // ramp up
+      { duration: "1m",  target: 50 },   // sustained load
+      { duration: "30s", target: 0 },    // ramp down
+    ];
+
 export const options = {
-  stages: [
-    { duration: "30s", target: 10 },   // ramp up
-    { duration: "1m",  target: 50 },   // sustained load
-    { duration: "30s", target: 0 },    // ramp down
-  ],
+  stages,
   thresholds: {
-    http_req_duration: ["p(95)<500"],   // p95 < 500ms
-    error_rate: ["rate<0.05"],          // error rate < 5%
+    http_req_duration: ["p(95)<500"],   // p95 < 500ms — her iki profilde de geçerli (kapı)
+    error_rate: ["rate<0.05"],          // error rate < 5% — her iki profilde de geçerli (kapı)
   },
 };
 

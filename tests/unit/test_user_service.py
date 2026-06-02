@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import Booking, BookingStatus, Hotel, Room, RoomStatus, RoomType, User
+from src.models import BookingStatus, RoomStatus, RoomType
 from src.services.booking_service import BookingNotFoundError
 from src.services.user_service import (
     add_favorite,
@@ -14,6 +14,7 @@ from src.services.user_service import (
     remove_favorite,
     update_user,
 )
+from tests.factories import BookingFactory, HotelFactory, RoomFactory, UserFactory
 
 
 @pytest.mark.asyncio
@@ -28,13 +29,8 @@ async def test_get_user_bookings_returns_empty_for_missing_user():
 
 @pytest.mark.asyncio
 async def test_get_user_bookings_upcoming_filter(db_session: AsyncSession):
-    user = User(
-        email="upcoming@example.com",
-        password_hash="hash",
-        first_name="Up",
-        last_name="Coming",
-    )
-    hotel = Hotel(
+    user = UserFactory(email="upcoming@example.com", first_name="Up", last_name="Coming")
+    hotel = HotelFactory(
         name="Up Hotel",
         city="İstanbul",
         district="Merkez",
@@ -46,9 +42,8 @@ async def test_get_user_bookings_upcoming_filter(db_session: AsyncSession):
     db_session.add_all([user, hotel])
     await db_session.flush()
 
-    room = Room(
+    room = RoomFactory(
         hotel_id=hotel.id,
-        room_number="U1",
         type=RoomType.double,
         capacity=2,
         price_per_night=300.0,
@@ -58,7 +53,7 @@ async def test_get_user_bookings_upcoming_filter(db_session: AsyncSession):
     await db_session.flush()
 
     today = datetime.now(timezone.utc).date()
-    upcoming = Booking(
+    upcoming = BookingFactory(
         user_id=user.id,
         room_id=room.id,
         guest_name="Up Coming",
@@ -68,7 +63,7 @@ async def test_get_user_bookings_upcoming_filter(db_session: AsyncSession):
         total_price=600.0,
         status=BookingStatus.confirmed,
     )
-    past = Booking(
+    past = BookingFactory(
         user_id=user.id,
         room_id=room.id,
         guest_name="Past",
@@ -78,7 +73,7 @@ async def test_get_user_bookings_upcoming_filter(db_session: AsyncSession):
         total_price=600.0,
         status=BookingStatus.confirmed,
     )
-    cancelled = Booking(
+    cancelled = BookingFactory(
         user_id=user.id,
         room_id=room.id,
         guest_name="Cancel",
@@ -105,13 +100,8 @@ async def test_get_user_bookings_upcoming_filter(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_get_user_bookings_links_guest_email_without_user_id(db_session: AsyncSession):
-    user = User(
-        email="guestlink@example.com",
-        password_hash="hash",
-        first_name="Guest",
-        last_name="Link",
-    )
-    hotel = Hotel(
+    user = UserFactory(email="guestlink@example.com", first_name="Guest", last_name="Link")
+    hotel = HotelFactory(
         name="Link Hotel",
         city="Ankara",
         stars=3,
@@ -121,9 +111,8 @@ async def test_get_user_bookings_links_guest_email_without_user_id(db_session: A
     )
     db_session.add_all([user, hotel])
     await db_session.flush()
-    room = Room(
+    room = RoomFactory(
         hotel_id=hotel.id,
-        room_number="L1",
         type=RoomType.double,
         capacity=2,
         price_per_night=200.0,
@@ -132,7 +121,7 @@ async def test_get_user_bookings_links_guest_email_without_user_id(db_session: A
     db_session.add(room)
     await db_session.flush()
 
-    orphan = Booking(
+    orphan = BookingFactory(
         user_id=None,
         room_id=room.id,
         guest_name="Guest Link",
@@ -152,19 +141,9 @@ async def test_get_user_bookings_links_guest_email_without_user_id(db_session: A
 
 @pytest.mark.asyncio
 async def test_get_user_booking_denies_other_users_booking(db_session: AsyncSession):
-    owner = User(
-        email="owner@example.com",
-        password_hash="hash",
-        first_name="Owner",
-        last_name="One",
-    )
-    other = User(
-        email="other@example.com",
-        password_hash="hash",
-        first_name="Other",
-        last_name="Two",
-    )
-    hotel = Hotel(
+    owner = UserFactory(email="owner@example.com", first_name="Owner", last_name="One")
+    other = UserFactory(email="other@example.com", first_name="Other", last_name="Two")
+    hotel = HotelFactory(
         name="Own Hotel",
         city="İzmir",
         stars=4,
@@ -174,9 +153,8 @@ async def test_get_user_booking_denies_other_users_booking(db_session: AsyncSess
     )
     db_session.add_all([owner, other, hotel])
     await db_session.flush()
-    room = Room(
+    room = RoomFactory(
         hotel_id=hotel.id,
-        room_number="O1",
         type=RoomType.double,
         capacity=2,
         price_per_night=250.0,
@@ -184,7 +162,7 @@ async def test_get_user_booking_denies_other_users_booking(db_session: AsyncSess
     )
     db_session.add(room)
     await db_session.flush()
-    booking = Booking(
+    booking = BookingFactory(
         user_id=owner.id,
         room_id=room.id,
         guest_name="Owner",
@@ -203,13 +181,8 @@ async def test_get_user_booking_denies_other_users_booking(db_session: AsyncSess
 
 @pytest.mark.asyncio
 async def test_favorites_add_list_remove(db_session: AsyncSession):
-    user = User(
-        email="fav@example.com",
-        password_hash="hash",
-        first_name="Fav",
-        last_name="User",
-    )
-    hotel = Hotel(
+    user = UserFactory(email="fav@example.com", first_name="Fav", last_name="User")
+    hotel = HotelFactory(
         name="Fav Hotel",
         city="Bodrum",
         stars=5,
@@ -236,12 +209,7 @@ async def test_favorites_add_list_remove(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_update_user_applies_fields(db_session: AsyncSession):
-    user = User(
-        email="update@example.com",
-        password_hash="hash",
-        first_name="Old",
-        last_name="Name",
-    )
+    user = UserFactory(email="update@example.com", first_name="Old", last_name="Name")
     db_session.add(user)
     await db_session.commit()
 

@@ -101,6 +101,16 @@ docker run --rm -v "$(pwd)/perf:/scripts" -e BASE_URL=http://host.docker.interna
 
 > **Not:** Sonuçları güncellemek için testi kendi ortamınızda çalıştırıp yukarıdaki **Sonuçlar** bölümündeki `http_req_duration` satırındaki **p(95)** değerini rapora yapıştırın.
 
+### CI profili (regresyon kapısı)
+
+CI'da bu test, canlı `docker compose` stack'i üzerinde **kısa profille** otomatik koşar ve threshold ihlalinde build'i kırar:
+
+```bash
+K6_PROFILE=ci BASE_URL=http://localhost:8000 k6 run perf/load-test.js
+```
+
+`K6_PROFILE=ci` verildiğinde stages ~35sn'ye kısalır (10s→10VU, 20s→20VU, 5s→0); thresholds (p95<500, error_rate<0.05) yukarıdaki yerel profille **aynı** kalır. `K6_PROFILE` verilmezse mevcut 2 dakikalık profil aynen korunur.
+
 ### Beklenen çıktı şablonu (henüz çalıştırmadıysanız)
 
 ```

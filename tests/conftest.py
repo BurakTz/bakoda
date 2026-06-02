@@ -1,5 +1,4 @@
 import os
-import uuid
 
 import pytest
 import pytest_asyncio
@@ -10,6 +9,7 @@ from sqlalchemy.pool import NullPool
 from src.database import Base, get_db
 from src.main import app
 from src.models import Hotel, Room, RoomStatus, RoomType
+from tests.factories import HotelFactory, RoomFactory
 
 _TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
@@ -70,7 +70,8 @@ async def client(session_factory):
 @pytest_asyncio.fixture()
 async def sample_hotel(session_factory) -> Hotel:
     async with session_factory() as session:
-        hotel = Hotel(
+        # Faker tabanlı; ama testlerin bağlı olduğu alanlar açık kwarg ile sabit.
+        hotel = HotelFactory(
             name="Test Hotel",
             city="İstanbul",
             district="Beşiktaş",
@@ -88,9 +89,9 @@ async def sample_hotel(session_factory) -> Hotel:
 @pytest_asyncio.fixture()
 async def sample_room(session_factory, sample_hotel: Hotel) -> Room:
     async with session_factory() as session:
-        room = Room(
+        # Faker tabanlı oda; kapasite/fiyat/durum testlerin beklediği değerlerde.
+        room = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"T{uuid.uuid4().hex[:6].upper()}",
             type=RoomType.double,
             capacity=2,
             price_per_night=150.0,

@@ -1,18 +1,15 @@
-import uuid
-
 import pytest
 from httpx import AsyncClient
 
 from src.models import Room, RoomStatus, RoomType
+from tests.factories import RoomFactory
 
 
 @pytest.fixture()
 async def extra_room(session_factory, sample_hotel) -> Room:
     async with session_factory() as session:
-        uid = uuid.uuid4().hex[:6].upper()
-        room = Room(
+        room = RoomFactory(
             hotel_id=sample_hotel.id,
-            room_number=f"R{uid}",
             type=RoomType.single,
             capacity=1,
             price_per_night=80.0,
@@ -70,3 +67,22 @@ async def test_list_rooms_with_availability_filter(client: AsyncClient, extra_ro
     resp = await client.get("/api/rooms?check_in=2027-01-01&check_out=2027-01-05")
     assert resp.status_code == 200
     assert any(r["room_number"] == extra_room.room_number for r in resp.json())
+
+
+@pytest.mark.asyncio
+async def test_factory_batch_rooms_appear_in_listing(
+    client: AsyncClient, session_factory, sample_hotel
+):
+    """Faker ile üretilmiş bir oda partisinin tamamı oda listesinde görünür."""
+    async with session_factory() as session:
+        rooms = RoomFactory.build_batch(
+            4, hotel_id=sample_hotel.id, status=RoomStatus.available
+        )
+        session.add_all(rooms)
+        await session.commit()
+        created_numbers = {r.room_number for r in rooms}
+
+    resp = await client.get("/api/rooms")
+    assert resp.status_code == 200
+    listed_numbers = {r["room_number"] for r in resp.json()}
+    assert created_numbers.issubset(listed_numbers)

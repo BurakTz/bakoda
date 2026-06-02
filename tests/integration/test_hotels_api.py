@@ -6,8 +6,6 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.models import (
-    Booking,
-    BookingStatus,
     Hotel,
     HotelAmenity,
     HotelReview,
@@ -15,12 +13,14 @@ from src.models import (
     RoomStatus,
     RoomType,
 )
+from tests.factories import BookingFactory, HotelFactory, RoomFactory
 
 
 @pytest.fixture()
 async def istanbul_hotel(session_factory) -> Hotel:
     async with session_factory() as session:
-        hotel = Hotel(
+        # Şehir/yıldız/fiyat assert'lere bağlı; açık kwarg ile sabit, gerisi Faker.
+        hotel = HotelFactory(
             name="İstanbul Test Hotel",
             city="İstanbul",
             district="Beşiktaş",
@@ -37,9 +37,8 @@ async def istanbul_hotel(session_factory) -> Hotel:
                 HotelAmenity(hotel_id=hotel.id, icon="wifi", title="Wi-Fi"),
                 HotelAmenity(hotel_id=hotel.id, icon="pool", title="Havuz"),
                 HotelReview(hotel_id=hotel.id, reviewer_name="Ali", rating=9.8, text="Harika"),
-                Room(
+                RoomFactory(
                     hotel_id=hotel.id,
-                    room_number=f"H{uuid.uuid4().hex[:6].upper()}",
                     type=RoomType.double,
                     capacity=2,
                     price_per_night=3000.0,
@@ -55,7 +54,7 @@ async def istanbul_hotel(session_factory) -> Hotel:
 @pytest.fixture()
 async def limited_capacity_hotel(session_factory) -> Hotel:
     async with session_factory() as session:
-        hotel = Hotel(
+        hotel = HotelFactory(
             name="Capacity Test Hotel",
             city="Testopolis",
             district="Center",
@@ -68,9 +67,8 @@ async def limited_capacity_hotel(session_factory) -> Hotel:
         await session.flush()
 
         session.add(
-            Room(
+            RoomFactory(
                 hotel_id=hotel.id,
-                room_number=f"C{uuid.uuid4().hex[:6].upper()}",
                 type=RoomType.double,
                 capacity=2,
                 price_per_night=1800.0,
@@ -85,7 +83,7 @@ async def limited_capacity_hotel(session_factory) -> Hotel:
 @pytest.fixture()
 async def urgup_hotel(session_factory) -> Hotel:
     async with session_factory() as session:
-        hotel = Hotel(
+        hotel = HotelFactory(
             name="Ürgüp Cave Suites",
             city="Nevşehir",
             district="Ürgüp",
@@ -97,9 +95,8 @@ async def urgup_hotel(session_factory) -> Hotel:
         session.add(hotel)
         await session.flush()
         session.add(
-            Room(
+            RoomFactory(
                 hotel_id=hotel.id,
-                room_number=f"U{uuid.uuid4().hex[:6].upper()}",
                 type=RoomType.double,
                 capacity=2,
                 price_per_night=2400.0,
@@ -315,11 +312,10 @@ async def test_list_hotels_includes_available_room_count_with_dates(
         result = await session.execute(select(Hotel).where(Hotel.id == istanbul_hotel.id))
         hotel = result.scalar_one()
         hotel.city = unique_city
-        for i in range(2):
+        for _ in range(2):
             session.add(
-                Room(
+                RoomFactory(
                     hotel_id=istanbul_hotel.id,
-                    room_number=f"E{i}{uuid.uuid4().hex[:4].upper()}",
                     type=RoomType.double,
                     capacity=2,
                     price_per_night=3000.0,
@@ -347,14 +343,13 @@ async def test_get_hotel_detail_filters_rooms_by_availability(
         result = await session.execute(select(Room).where(Room.hotel_id == istanbul_hotel.id))
         room = result.scalars().first()
         session.add(
-            Booking(
+            BookingFactory(
                 room_id=room.id,
                 guest_name="Blocker",
                 guest_email="block@test.com",
                 check_in=date(2027, 8, 1),
                 check_out=date(2027, 8, 5),
                 total_price=100.0,
-                status=BookingStatus.confirmed,
             )
         )
         await session.commit()
@@ -440,3 +435,42 @@ async def test_create_hotel_review_persists_and_updates_rating(
     assert detail["reviews_count"] == 2
     assert pytest.approx(detail["rating"], rel=1e-6) == 8.9
     assert any(r["text"] == "Temiz ve merkezi bir otel." for r in detail["reviews"])
+
+
+@pytest.mark.asyncio
+async def test_factory_seeded_hotels_filter_by_city(client: AsyncClient, session_factory):
+    """Faker ile üretilmiş çok sayıda otel; benzersiz şehir ile listeleme akışı."""
+    unique_city = f"FactoryCity-{uuid.uuid4().hex[:8]}"
+    async with session_factory() as session:
+        # 5 otelin tamamı aynı (benzersiz) şehirde; gerisi Faker rastgele.
+        hotels = HotelFactory.build_batch(5, city=unique_city)
+        session.add_all(hotels)
+        await session.commit()
+
+    resp = await client.get(f"/api/hotels?city={unique_city}")
+    assert resp.status_code == 200
+    listed = resp.json()["hotels"]
+    assert len(listed) == 5
+    assert all(h["city"] == unique_city for h in listed)
+
+
+@pytest.mark.asyncio
+async def test_factory_hotel_detail_lists_factory_rooms(client: AsyncClient, session_factory):
+    """Faker ile üretilmiş otel + odalar; otel detayında odaların listelenmesi."""
+    async with session_factory() as session:
+        hotel = HotelFactory()
+        session.add(hotel)
+        await session.flush()
+        rooms = RoomFactory.build_batch(
+            3, hotel_id=hotel.id, status=RoomStatus.available
+        )
+        session.add_all(rooms)
+        await session.commit()
+        await session.refresh(hotel)
+        hotel_id = hotel.id
+
+    resp = await client.get(f"/api/hotels/{hotel_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == hotel_id
+    assert len(data["rooms"]) == 3

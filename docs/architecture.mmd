@@ -32,7 +32,7 @@ flowchart TB
 
     subgraph ci["CI/CD — GitHub Actions"]
         direction LR
-        L["lint<br/>(ruff)"] --> T["pytest<br/>cov greater than 70 (gerçek 98.5)"] --> B["docker<br/>build"] --> N["Newman<br/>smoke"] --> D["Minikube<br/>deploy + smoke"]
+        L["lint<br/>(ruff)"] --> T["pytest<br/>cov 98.5 (306 test)"] --> B["docker<br/>build"] --> N["Newman<br/>smoke"] --> E2E["Playwright<br/>E2E"] --> K6["k6<br/>p95 kapısı"] --> D["Minikube<br/>deploy + smoke"]
     end
 
     UI --> SVC

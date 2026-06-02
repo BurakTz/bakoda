@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.models import Hotel, Room, RoomStatus, RoomType
+from src.models import RoomStatus, RoomType
 from src.services.hotel_service import (
     CITY_COUNTRY,
     _city_slug,
@@ -14,6 +14,7 @@ from src.services.hotel_service import (
     list_destinations,
     search_locations,
 )
+from tests.factories import HotelFactory, RoomFactory
 
 
 def test_city_slug_spaces_to_hyphens():
@@ -86,23 +87,21 @@ async def test_get_hotel_detail_not_found():
 
 @pytest.mark.asyncio
 async def test_get_hotel_detail_without_dates_filters_available_rooms():
-    hotel = Hotel(
+    hotel = HotelFactory(
         id=1, name="H", city="İstanbul", stars=4, rating=8.0,
         reviews_count=1, price_per_night=100.0,
     )
-    available = Room(
+    available = RoomFactory(
         id=1,
         hotel_id=1,
-        room_number="A1",
         type=RoomType.double,
         capacity=2,
         price_per_night=100.0,
         status=RoomStatus.available,
     )
-    maintenance = Room(
+    maintenance = RoomFactory(
         id=2,
         hotel_id=1,
-        room_number="A2",
         type=RoomType.single,
         capacity=1,
         price_per_night=80.0,
@@ -125,7 +124,7 @@ async def test_get_hotel_detail_without_dates_filters_available_rooms():
 
 @pytest.mark.asyncio
 async def test_get_hotel_detail_with_dates_delegates_to_room_service(monkeypatch):
-    hotel = Hotel(
+    hotel = HotelFactory(
         id=2, name="H2", city="Paris", stars=5, rating=9.0,
         reviews_count=2, price_per_night=200.0,
     )
@@ -136,10 +135,9 @@ async def test_get_hotel_detail_with_dates_delegates_to_room_service(monkeypatch
     db.execute.return_value = result
 
     rooms = [
-        Room(
+        RoomFactory(
             id=10,
             hotel_id=2,
-            room_number="R10",
             type=RoomType.double,
             capacity=2,
             price_per_night=200.0,
@@ -164,7 +162,7 @@ async def test_get_hotel_detail_with_dates_delegates_to_room_service(monkeypatch
 
 @pytest.mark.asyncio
 async def test_create_hotel_review_updates_hotel_stats(db_session):
-    hotel = Hotel(
+    hotel = HotelFactory(
         name="Review Hotel",
         city="İstanbul",
         district="Beşiktaş",

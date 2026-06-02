@@ -18,16 +18,37 @@ from src.services import s3_service
 _EXTERNAL_ENDPOINT = os.getenv("S3_ENDPOINT_URL")
 
 
+def _docker_available() -> bool:
+    """Return True if a Docker daemon is reachable via the docker SDK."""
+    try:
+        import docker
+
+        docker.from_env().ping()
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture(scope="session")
 def localstack_container():
     if _EXTERNAL_ENDPOINT:
         yield None
         return
-    from testcontainers.localstack import LocalStackContainer
+
+    if not _docker_available():
+        pytest.skip("Docker yok — LocalStack S3 integration testleri atlanıyor")
+
+    try:
+        from testcontainers.localstack import LocalStackContainer
+    except ImportError:
+        pytest.skip("testcontainers[localstack] kurulu değil")
 
     image = os.getenv("LOCALSTACK_IMAGE", "localstack/localstack:3")
-    with LocalStackContainer(image=image) as ls:
-        yield ls
+    try:
+        with LocalStackContainer(image=image) as ls:
+            yield ls
+    except Exception as e:
+        pytest.skip(f"LocalStack başlatılamadı: {e}")
 
 
 @pytest.fixture(scope="session")

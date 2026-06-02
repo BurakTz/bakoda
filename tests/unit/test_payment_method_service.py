@@ -1,18 +1,13 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import User
 from src.services import payment_method_service
+from tests.factories import UserFactory
 
 
 @pytest.mark.asyncio
 async def test_create_and_list_cards(db_session: AsyncSession):
-    user = User(
-        email="cards-svc@bakoda.com",
-        password_hash="hash",
-        first_name="Card",
-        last_name="Tester",
-    )
+    user = UserFactory(email="cards-svc@bakoda.com", first_name="Card", last_name="Tester")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -39,12 +34,7 @@ async def test_create_and_list_cards(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_upsert_billing_persists(db_session: AsyncSession):
-    user = User(
-        email="billing-svc@bakoda.com",
-        password_hash="hash",
-        first_name="Bill",
-        last_name="Tester",
-    )
+    user = UserFactory(email="billing-svc@bakoda.com", first_name="Bill", last_name="Tester")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
