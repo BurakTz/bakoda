@@ -97,7 +97,7 @@ Proje demo kaydını buraya ekleyin. Video **YouTube** veya **Google Drive** üz
 
 ```
 YouTube: https://youtu.be/XXXXXXXXXXX
-Drive:   https://drive.google.com/file/d/XXXXXXXXXXX/view?usp=sharing
+Drive:   https://drive.google.com/drive/u/0/folders/1nmefc97or6qRHR2e4iy45t1JRACJw0VU
 ```
 
 ### Video içeriği (önerilen akış)
@@ -106,22 +106,6 @@ Drive:   https://drive.google.com/file/d/XXXXXXXXXXX/view?usp=sharing
 2. Frontend: otel arama → detay → rezervasyon → onay
 3. API docs (`/docs`) veya Postman ile endpoint demo
 4. Grafana dashboard ve Jaeger trace görüntüleme (opsiyonel)
-
-### Yükleme adımları
-
-**YouTube**
-1. [YouTube Studio](https://studio.youtube.com) → **Create** → **Upload videos**
-2. Görünürlük: **Unlisted** (değerlendirme için yeterli) veya **Public**
-3. Paylaşım linkini yukarıdaki placeholder satırına yapıştırın
-
-**Google Drive**
-1. Videoyu Drive'a yükleyin → sağ tık → **Share**
-2. **General access**: *Anyone with the link* → **Viewer**
-3. Linki kopyalayıp README'deki placeholder'a yapıştırın
-
-> Henüz video yüklenmediyse placeholder satırlarını silmeyin; değerlendirici hangi formatta link beklediğini görebilsin.
-
----
 
 ## API Endpoints
 
