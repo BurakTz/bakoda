@@ -7,8 +7,8 @@
 
 ## Üyeler
 
-- **Arif Batuhan Bahar** ([Öğrenci No]) — UI (React statik frontend), test piramidi (unit/integration/E2E), QA senaryoları
-- **Burak Tuzcu** ([Öğrenci No]) — Backend (FastAPI), veritabanı, DevOps (Docker/K8s/CI), gözlemlenebilirlik, repo sahibi
+- **Arif Batuhan Bahar** ([170423037]) — UI (React statik frontend), test piramidi (unit/integration/E2E), QA senaryoları
+- **Burak Tuzcu** ([170423042]) — Backend (FastAPI), veritabanı, DevOps (Docker/K8s/CI), gözlemlenebilirlik, repo sahibi
 
 ---
 
