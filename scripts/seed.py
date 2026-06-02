@@ -21,7 +21,8 @@ from sqlalchemy.orm import sessionmaker
 
 from src.services import s3_service
 
-_IMAGES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hotel_images")
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_IMAGES_DIR = os.path.join(_PROJECT_ROOT, "hotel_images")
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@postgres:5432/bakoda"

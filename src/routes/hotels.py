@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
@@ -140,9 +140,10 @@ async def upload_hotel_image(
     current_user: User = Depends(get_current_user),
 ):
     if file.content_type not in _ALLOWED_CONTENT_TYPES:
+        allowed = ", ".join(_ALLOWED_CONTENT_TYPES)
         raise HTTPException(
             status_code=415,
-            detail=f"Desteklenmeyen dosya tipi. İzin verilenler: {', '.join(_ALLOWED_CONTENT_TYPES)}",
+            detail=f"Desteklenmeyen dosya tipi. İzin verilenler: {allowed}",
         )
 
     data = await file.read()
