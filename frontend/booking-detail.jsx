@@ -16,6 +16,10 @@ const fmtDateLong = (d) => {
 };
 const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 const today = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const toIsoDate = (value) => {
+  const txt = String(value || "").trim();
+  return txt ? txt.slice(0, 10) : "";
+};
 
 function bookingUiStatus(b) {
   if (b.status === "cancelled") return "cancelled";
@@ -36,6 +40,13 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [booking, setBooking] = useState(null);
+
+  // Edit (update) state
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [formMsg, setFormMsg] = useState("");
+  const [form, setForm] = useState({ check_in: "", check_out: "", guests: 1, rooms_count: 1 });
 
   useEffect(() => {
     if (!Number.isFinite(bookingId) || bookingId < 1) {
@@ -87,6 +98,96 @@ function App() {
   const checkIn = booking ? parseIsoDate(booking.check_in) : null;
   const checkOut = booking ? parseIsoDate(booking.check_out) : null;
   const nights = checkIn && checkOut ? Math.max(1, daysBetween(checkIn, checkOut)) : 0;
+
+  // Auto-open the edit form when arriving via "?edit=1" on an upcoming booking.
+  useEffect(() => {
+    if (booking && qs.get("edit") === "1" && bookingUiStatus(booking) === "upcoming") {
+      openEdit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking]);
+
+  const openEdit = () => {
+    if (!booking) return;
+    setForm({
+      check_in: toIsoDate(booking.check_in),
+      check_out: toIsoDate(booking.check_out),
+      guests: Number(booking.guests) || 1,
+      rooms_count: Number(booking.rooms_count) || 1,
+    });
+    setFormError("");
+    setFormMsg("");
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setFormError("");
+  };
+
+  const saveEdit = async (e) => {
+    e.preventDefault();
+    setFormError("");
+    setFormMsg("");
+
+    if (!form.check_in || !form.check_out) {
+      setFormError("Giriş ve çıkış tarihlerini girin.");
+      return;
+    }
+    if (form.check_out <= form.check_in) {
+      setFormError("Çıkış tarihi girişten sonra olmalı.");
+      return;
+    }
+
+    const token = localStorage.getItem("bakoda_token");
+    if (!token) {
+      setFormError("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          check_in: form.check_in,
+          check_out: form.check_out,
+          guests: Number(form.guests) || 1,
+          rooms_count: Number(form.rooms_count) || 1,
+        }),
+      });
+
+      let body = null;
+      try { body = await res.json(); } catch {}
+
+      if (res.status === 401) {
+        localStorage.removeItem("bakoda_token");
+        localStorage.removeItem("bakoda_user");
+        setFormError("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.");
+        return;
+      }
+      if (res.status === 409) {
+        setFormError(body?.detail || "Seçilen tarihlerde oda müsait değil.");
+        return;
+      }
+      if (!res.ok) {
+        setFormError(body?.detail || "Rezervasyon güncellenemedi.");
+        return;
+      }
+
+      setBooking(body);
+      setEditing(false);
+      setFormMsg("Rezervasyon güncellendi.");
+    } catch {
+      setFormError("Rezervasyon güncellenemedi. Lütfen tekrar deneyin.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <ProfileShell active="bookings">
@@ -190,9 +291,75 @@ function App() {
                   </div>
                 </div>
 
+                {formMsg && !editing ? (
+                  <div className="form-note ok" role="status">{formMsg}</div>
+                ) : null}
+
+                {editing ? (
+                  <form className="edit-form" onSubmit={saveEdit}>
+                    <h3>Rezervasyonu Düzenle</h3>
+                    <div className="edit-grid">
+                      <label className="fld">
+                        <span>Giriş tarihi</span>
+                        <input
+                          type="date"
+                          value={form.check_in}
+                          onChange={(e) => setForm((s) => ({ ...s, check_in: e.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label className="fld">
+                        <span>Çıkış tarihi</span>
+                        <input
+                          type="date"
+                          value={form.check_out}
+                          onChange={(e) => setForm((s) => ({ ...s, check_out: e.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label className="fld">
+                        <span>Misafir</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={form.guests}
+                          onChange={(e) => setForm((s) => ({ ...s, guests: e.target.value }))}
+                        />
+                      </label>
+                      <label className="fld">
+                        <span>Oda</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={form.rooms_count}
+                          onChange={(e) => setForm((s) => ({ ...s, rooms_count: e.target.value }))}
+                        />
+                      </label>
+                    </div>
+
+                    {formError ? (
+                      <div className="form-note err" role="alert">{formError}</div>
+                    ) : null}
+
+                    <div className="edit-actions">
+                      <button type="submit" className="btn btn-primary" disabled={saving}>
+                        {saving ? "Kaydediliyor…" : "Değişiklikleri Kaydet"}
+                      </button>
+                      <button type="button" className="btn btn-ghost" onClick={cancelEdit} disabled={saving}>
+                        Vazgeç
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
                 <div className="detail-actions">
+                  {uiStatus === "upcoming" && !editing ? (
+                    <button type="button" className="btn btn-primary" onClick={openEdit}>
+                      Düzenle
+                    </button>
+                  ) : null}
                   {booking.confirmation_url ? (
-                    <a className="btn btn-primary" href={booking.confirmation_url} target="_blank" rel="noopener noreferrer">
+                    <a className="btn btn-secondary" href={booking.confirmation_url} target="_blank" rel="noopener noreferrer">
                       Onay Belgesini İndir
                     </a>
                   ) : null}

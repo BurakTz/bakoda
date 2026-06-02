@@ -1,7 +1,13 @@
 """
-E2E tests using Playwright against a live running app (BASE_URL env var).
-These tests expect the app + postgres to be up (e.g. via docker compose).
-Run with: BASE_URL=http://localhost:8000 pytest tests/e2e/
+API-level E2E (HTTP only) — Playwright APIRequestContext, no browser.
+
+Covers backend booking rules: health, list rooms, create/get booking,
+double-booking 409, cancel + re-availability.
+
+For browser/UI journeys see test_ui_booking.py and test_ui_user_flows.py.
+
+Requires live app + seeded DB:
+    BASE_URL=http://localhost:8000 poetry run pytest tests/e2e/test_booking_flow.py -v
 """
 
 import os

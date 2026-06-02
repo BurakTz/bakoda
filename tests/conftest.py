@@ -43,7 +43,7 @@ async def db_engine(pg_container):
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest.fixture(scope="session")
 def session_factory(db_engine):
     return async_sessionmaker(db_engine, expire_on_commit=False)
 

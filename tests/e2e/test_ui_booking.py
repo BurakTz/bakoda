@@ -11,18 +11,13 @@ Install Playwright browsers once:
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
 
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.helpers import future_stay
+
 pytestmark = pytest.mark.playwright
-
-
-def _future_stay() -> tuple[str, str]:
-    start = date.today() + timedelta(days=45)
-    end = start + timedelta(days=3)
-    return start.isoformat(), end.isoformat()
 
 
 def test_homepage_loads(page: Page) -> None:
@@ -38,8 +33,9 @@ def test_homepage_loads(page: Page) -> None:
 def test_homepage_search_navigates_to_results(page: Page) -> None:
     """Hero search submits to search-results.html with query params."""
     page.goto("/")
-    page.get_by_role("button", name=re.compile(r"otel ara", re.IGNORECASE)).click()
-    page.wait_for_url(re.compile(r"search-results\.html"), timeout=15_000)
+    page.get_by_placeholder(re.compile(r"nereye", re.IGNORECASE)).fill("İstanbul")
+    with page.expect_navigation(url=re.compile(r"search-results\.html")):
+        page.get_by_role("button", name=re.compile(r"otel ara", re.IGNORECASE)).click()
     expect(page).to_have_url(re.compile(r"search-results\.html\?"))
     expect(page.get_by_role("main")).to_be_visible(timeout=15_000)
     expect(page.get_by_role("heading", level=1)).to_contain_text(
@@ -69,7 +65,7 @@ def test_login_form_renders_and_validates(page: Page) -> None:
 
 def test_booking_page_accepts_dates_in_query(page: Page) -> None:
     """Booking flow page loads with check-in/out from URL and shows stay summary."""
-    check_in, check_out = _future_stay()
+    check_in, check_out = future_stay()
     page.goto(
         f"/booking.html?hotel_id=1&room_id=1&check_in={check_in}&check_out={check_out}"
         f"&adults=2&rooms=1"

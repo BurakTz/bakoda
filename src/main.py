@@ -1,4 +1,5 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -57,7 +58,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_setup_otel(app)
+# OTel'i yalnızca etkinse ve test (pytest) altında değilken kur; aksi halde
+# collector yoksa (test/prod) sürekli OTLP export hatası loglanır.
+if settings.otel_enabled and "pytest" not in sys.modules:
+    _setup_otel(app)
 
 # ── Prometheus metrics ───────────────────────────────────────────────────────
 Instrumentator().instrument(app).expose(app)

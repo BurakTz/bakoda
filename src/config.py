@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     s3_endpoint_url: str = "http://localhost:4566"
     s3_bucket_name: str = "bakoda-confirmations"
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_enabled: bool = True
     log_level: str = "INFO"
     jwt_secret_key: str = "change-me-in-prod"
     jwt_algorithm: str = "HS256"

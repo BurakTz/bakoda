@@ -128,11 +128,19 @@ Drive:   https://drive.google.com/file/d/XXXXXXXXXXX/view?usp=sharing
 | Method | Path | Açıklama |
 |---|---|---|
 | GET | `/health` | Sağlık kontrolü |
-| GET | `/api/rooms` | Oda listesi (opsiyonel: `?check_in=&check_out=`) |
-| GET | `/api/rooms/{id}` | Oda detayı |
+| GET | `/api/hotels` | Otel listesi + filtreler (`?city=&check_in=&check_out=&guests=&stars=&price_max=`) |
+| GET | `/api/hotels/{id}` | Otel detayı (odalar, olanaklar, yorumlar) |
+| GET | `/api/hotels/destinations` | Popüler destinasyonlar |
+| GET | `/api/hotels/locations` | Lokasyon arama (autocomplete) |
+| GET | `/api/rooms` | Oda listesi — müsaitlik filtreli public REST kaynağı (opsiyonel: `?check_in=&check_out=`) |
+| GET | `/api/rooms/{id}` | Tekil oda detayı (rezerve edilebilir birim) |
 | POST | `/api/bookings` | Rezervasyon oluştur |
 | GET | `/api/bookings/{id}` | Rezervasyon detayı |
 | PATCH | `/api/bookings/{id}/cancel` | Rezervasyon iptal |
+
+> `/api/rooms` ucu, oda envanterini otelden bağımsız sorgulamak için kullanılan
+> bağımsız bir REST kaynağıdır. Newman koleksiyonu (`postman/collection.json`)
+> bu uçları seed edilmiş veriye karşı CI'da otomatik test eder.
 
 ---
 

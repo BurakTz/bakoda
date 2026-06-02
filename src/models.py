@@ -252,6 +252,43 @@ class BillingAddress(Base):
     user: Mapped["User"] = relationship("User", back_populates="billing_address")
 
 
+# ── Payment ──────────────────────────────────────────────────────────────────
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    booking_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("bookings.id"), nullable=False, index=True
+    )
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="TRY")
+    method: Mapped[str] = mapped_column(String(30), nullable=False, default="card")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
+    transaction_id: Mapped[str] = mapped_column(
+        String(40), unique=True, nullable=False, index=True
+    )
+    card_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# ── ContactMessage ─────────────────────────────────────────────────────────────
+
+
+class ContactMessage(Base):
+    __tablename__ = "contact_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    subject: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    ticket_id: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 # ── PasswordResetCode ────────────────────────────────────────────────────────
 
 

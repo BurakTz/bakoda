@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.models import Booking, BookingStatus, Room, RoomStatus, RoomType
+from src.models import Booking, BookingStatus, Room, RoomStatus, RoomType, User
 from src.services.booking_service import (
     BookingAlreadyCancelledError,
     BookingNotFoundError,
@@ -11,6 +11,7 @@ from src.services.booking_service import (
     cancel_booking,
     create_booking,
     get_booking,
+    update_booking,
 )
 
 
@@ -61,6 +62,7 @@ def _db_returning(*rows):
             result.scalar_one_or_none.return_value = row
         results.append(result)
     mock_db.execute.side_effect = results
+    mock_db.add = MagicMock()  # SQLAlchemy .add() senkrondur; AsyncMock coroutine sızdırır
     return mock_db
 
 
@@ -155,3 +157,61 @@ async def test_cancel_booking_already_cancelled():
     db = _db_returning(b)
     with pytest.raises(BookingAlreadyCancelledError):
         await cancel_booking(db, 1)
+
+
+def _user(**kw) -> User:
+    u = User()
+    defaults = dict(id=7, email="ali@x.com")
+    defaults.update(kw)
+    for k, v in defaults.items():
+        setattr(u, k, v)
+    return u
+
+
+@pytest.mark.asyncio
+async def test_update_booking_recomputes_price():
+    booking = _booking(id=1, user_id=7, guests=2, rooms_count=1)
+    room = _room(id=1, hotel_id=10, price_per_night=100.0)
+    # execute order: get_booking, select(Room), _is_room_available, count_available_rooms
+    db = _db_returning(booking, room, None, 0)
+    db.get = AsyncMock(return_value=_user(id=7))
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    result = await update_booking(
+        db, 1, 7, check_in=date(2026, 8, 1), check_out=date(2026, 8, 6)
+    )
+    # 5 nights * 100 * 1 room
+    assert result.total_price == 500.0
+    assert result.check_in == date(2026, 8, 1)
+    assert result.check_out == date(2026, 8, 6)
+
+
+@pytest.mark.asyncio
+async def test_update_booking_not_owner():
+    booking = _booking(id=1, user_id=99, guest_email="someoneelse@x.com")
+    db = _db_returning(booking)
+    db.get = AsyncMock(return_value=_user(id=7, email="ali@x.com"))
+    with pytest.raises(BookingNotFoundError):
+        await update_booking(db, 1, 7, guests=2)
+
+
+@pytest.mark.asyncio
+async def test_update_booking_cancelled():
+    booking = _booking(id=1, user_id=7, status=BookingStatus.cancelled)
+    db = _db_returning(booking)
+    db.get = AsyncMock(return_value=_user(id=7))
+    with pytest.raises(BookingAlreadyCancelledError):
+        await update_booking(db, 1, 7, guests=2)
+
+
+@pytest.mark.asyncio
+async def test_update_booking_room_conflict():
+    booking = _booking(id=1, user_id=7, guests=2, rooms_count=1)
+    room = _room(id=1, hotel_id=10)
+    conflicting = _booking(id=2)
+    # get_booking, select(Room), _is_room_available -> conflict found
+    db = _db_returning(booking, room, conflicting)
+    db.get = AsyncMock(return_value=_user(id=7))
+    with pytest.raises(RoomNotAvailableError):
+        await update_booking(db, 1, 7, check_in=date(2026, 9, 1), check_out=date(2026, 9, 3))

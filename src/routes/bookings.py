@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.models import User
-from src.schemas import BookingCreate, BookingListOut, BookingOut
+from src.schemas import BookingCreate, BookingListOut, BookingOut, BookingUpdate
 from src.services import booking_service, s3_service
-from src.services.auth_service import get_optional_user
+from src.services.auth_service import get_current_user, get_optional_user
 from src.services.booking_service import (
     BookingAlreadyCancelledError,
     BookingNotFoundError,
@@ -97,3 +97,35 @@ async def cancel_booking(booking_id: int, db: AsyncSession = Depends(get_db)):
     except BookingAlreadyCancelledError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return BookingOut.model_validate(booking)
+
+
+@router.patch("/{booking_id}", response_model=BookingListOut)
+async def update_booking(
+    booking_id: int,
+    payload: BookingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        await booking_service.update_booking(
+            db,
+            booking_id=booking_id,
+            user_id=current_user.id,
+            **payload.model_dump(exclude_none=True),
+        )
+    except BookingNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BookingAlreadyCancelledError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RoomNotAvailableError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    # Reload with hotel/room relations so the response matches the detail shape.
+    booking = await booking_service.get_booking_detail(db, booking_id)
+    out = booking_service.booking_to_list_out(booking)
+    if booking.confirmation_key:
+        try:
+            out.confirmation_url = s3_service.get_presigned_url(booking.confirmation_key)
+        except Exception:
+            logger.warning("Could not generate presigned URL for booking %s", booking.id)
+    return out

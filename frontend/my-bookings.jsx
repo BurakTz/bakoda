@@ -99,7 +99,10 @@ function BookingCard({ b, onAction }) {
             <IconArrow size={13} /> Detayları Gör
           </button>
           {b.status === "upcoming" ? (
-            <button className="btn btn-danger" onClick={() => onAction("iptal", b)}>İptal Et</button>
+            <>
+              <button className="btn btn-secondary" onClick={() => onAction("duzenle", b)}>Düzenle</button>
+              <button className="btn btn-danger" onClick={() => onAction("iptal", b)}>İptal Et</button>
+            </>
           ) : (
             <button className="btn btn-secondary" onClick={() => onAction("rebook", b)}>Yeniden Rezervasyon</button>
           )}
@@ -184,6 +187,9 @@ function App() {
     const token = localStorage.getItem("bakoda_token");
     if (kind === "detay") {
       window.location.href = `booking-detail.html?id=${b.id}`;
+    }
+    if (kind === "duzenle") {
+      window.location.href = `booking-detail.html?id=${b.id}&edit=1`;
     }
     if (kind === "iptal") {
       try {

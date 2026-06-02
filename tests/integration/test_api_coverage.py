@@ -2,9 +2,12 @@
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 
 from src.models import Hotel, Room
+
+pytestmark = pytest.mark.asyncio
 
 
 def _uid() -> str:

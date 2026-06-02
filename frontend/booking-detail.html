@@ -104,6 +104,28 @@
     .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
     .detail-actions .btn { height: 40px; font-size: 13px; }
 
+    .edit-form {
+      padding: 20px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .edit-form h3 { font-family: var(--display); font-size: 17px; font-weight: 600; color: var(--primary); }
+    .edit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    @media (max-width: 640px) { .edit-grid { grid-template-columns: 1fr; } }
+    .fld { display: flex; flex-direction: column; gap: 6px; }
+    .fld span { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    .fld input {
+      height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px;
+      font-size: 14px; color: var(--text); background: #fff;
+    }
+    .fld input:focus { outline: none; border-color: var(--primary); }
+    .edit-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .edit-actions .btn { height: 40px; font-size: 13px; }
+    .form-note {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    }
+    .form-note.err { background: rgba(231,76,60,.1); color: var(--error); }
+    .form-note.ok { background: rgba(46,204,113,.14); color: var(--success-dk); }
+
     .empty {
       padding: 80px 40px; text-align: center;
       background: #fff; border: 1px solid var(--line); border-radius: var(--r-card);

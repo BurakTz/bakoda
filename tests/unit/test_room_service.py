@@ -73,6 +73,7 @@ async def test_get_room_not_found():
 @pytest.mark.asyncio
 async def test_create_room():
     mock_db = AsyncMock()
+    mock_db.add = MagicMock()  # .add() senkron
     await room_service.create_room(
         mock_db,
         room_number="202",

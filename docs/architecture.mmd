@@ -1,0 +1,48 @@
+%% Bakoda — Hotel Room Booking | Mimari Diyagram
+%% mermaid.live editörüne yapıştırıp PNG export edin -> docs/architecture.png
+flowchart TB
+    subgraph clients["İstemciler ve Test Araçları"]
+        UI["Tarayıcı<br/>React statik UI"]
+        E2E["Playwright<br/>E2E — 25 senaryo"]
+        K6["k6<br/>Yük testi — 50 VU"]
+        PM["Postman / Newman<br/>7 istek (CI smoke)"]
+    end
+
+    subgraph k8s["Kubernetes — Minikube"]
+        SVC["Service<br/>ClusterIP :8000"]
+        CM["ConfigMap<br/>DB / S3 / OTEL env"]
+        subgraph deploy["Deployment — 2 replica"]
+            API["FastAPI + Uvicorn<br/>/api · /health · /metrics · /docs"]
+        end
+        SVC --> API
+        CM -. env .-> API
+    end
+
+    subgraph data["Veri ve Depolama"]
+        PG[("PostgreSQL 16<br/>SQLAlchemy 2 async + Alembic")]
+        S3[("LocalStack S3<br/>bakoda-confirmations")]
+    end
+
+    subgraph obs["Gözlemlenebilirlik"]
+        PROM["Prometheus"]
+        GRAF["Grafana<br/>3 panel: latency · error · throughput"]
+        JAEG["Jaeger<br/>OpenTelemetry (bonus +5)"]
+        PROM --> GRAF
+    end
+
+    subgraph ci["CI/CD — GitHub Actions"]
+        direction LR
+        L["lint<br/>(ruff)"] --> T["pytest<br/>cov greater than 70 (gerçek 98.5)"] --> B["docker<br/>build"] --> N["Newman<br/>smoke"] --> D["Minikube<br/>deploy + smoke"]
+    end
+
+    UI --> SVC
+    E2E --> SVC
+    K6 --> SVC
+    PM --> SVC
+
+    API --> PG
+    API --> S3
+    API -- /metrics --> PROM
+    API -- OTLP spans --> JAEG
+
+    D -. deploy .-> k8s

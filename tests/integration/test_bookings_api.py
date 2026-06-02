@@ -462,6 +462,140 @@ async def test_my_booking_detail_returns_full_booking(
     assert body["check_out"] == "2028-02-05"
 
 
+async def _register(client: AsyncClient, email: str) -> dict:
+    resp = await client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": "Secure123",
+            "first_name": "Up",
+            "last_name": "Date",
+        },
+    )
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+async def _create_booking(client: AsyncClient, room_id: int, email: str, headers=None, **overrides):
+    payload = {
+        "room_id": room_id,
+        "guest_name": "Update Guest",
+        "guest_email": email,
+        "check_in": "2029-01-01",
+        "check_out": "2029-01-04",
+    }
+    payload.update(overrides)
+    with (
+        patch("src.routes.bookings.s3_service.upload_confirmation", return_value="k"),
+        patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"),
+    ):
+        resp = await client.post("/api/bookings", json=payload, headers=headers or {})
+    assert resp.status_code == 201
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_update_booking_success(client: AsyncClient, book_room: Room):
+    headers = await _register(client, "update-owner@bakoda.com")
+    created = await _create_booking(
+        client, book_room.id, "update-owner@bakoda.com", headers,
+        check_in="2029-02-01", check_out="2029-02-04",
+    )
+    original_price = created["total_price"]
+
+    with patch("src.routes.bookings.s3_service.get_presigned_url", return_value="http://s3/p"):
+        resp = await client.patch(
+            f"/api/bookings/{created['id']}",
+            json={"check_in": "2029-02-01", "check_out": "2029-02-08", "guests": 2},
+            headers=headers,
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["check_out"] == "2029-02-08"
+    assert body["guests"] == 2
+    # 7 nights vs 3 nights => price grew
+    assert body["total_price"] > original_price
+    assert body["total_price"] == book_room.price_per_night * 7
+
+
+@pytest.mark.asyncio
+async def test_update_booking_room_not_available(client: AsyncClient, book_room: Room):
+    headers = await _register(client, "update-conflict@bakoda.com")
+    # First booking blocks the dates we'll move the second one onto.
+    await _create_booking(
+        client, book_room.id, "update-conflict@bakoda.com", headers,
+        check_in="2029-05-10", check_out="2029-05-15",
+    )
+    second = await _create_booking(
+        client, book_room.id, "update-conflict@bakoda.com", headers,
+        check_in="2029-06-01", check_out="2029-06-03",
+    )
+
+    resp = await client.patch(
+        f"/api/bookings/{second['id']}",
+        json={"check_in": "2029-05-11", "check_out": "2029-05-13"},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_booking_not_found(client: AsyncClient):
+    headers = await _register(client, "update-missing@bakoda.com")
+    resp = await client.patch(
+        "/api/bookings/99999",
+        json={"guests": 2},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_cancelled_booking_rejected(client: AsyncClient, book_room: Room):
+    headers = await _register(client, "update-cancelled@bakoda.com")
+    created = await _create_booking(
+        client, book_room.id, "update-cancelled@bakoda.com", headers,
+        check_in="2029-07-01", check_out="2029-07-03",
+    )
+    await client.patch(f"/api/bookings/{created['id']}/cancel")
+
+    resp = await client.patch(
+        f"/api/bookings/{created['id']}",
+        json={"guests": 2},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_booking_other_user_forbidden(client: AsyncClient, book_room: Room):
+    owner_headers = await _register(client, "update-real-owner@bakoda.com")
+    created = await _create_booking(
+        client, book_room.id, "update-real-owner@bakoda.com", owner_headers,
+        check_in="2029-08-01", check_out="2029-08-03",
+    )
+    other_headers = await _register(client, "update-intruder@bakoda.com")
+
+    resp = await client.patch(
+        f"/api/bookings/{created['id']}",
+        json={"guests": 2},
+        headers=other_headers,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_booking_requires_auth(client: AsyncClient, book_room: Room):
+    created = await _create_booking(
+        client, book_room.id, "update-noauth@bakoda.com",
+        check_in="2029-09-01", check_out="2029-09-03",
+    )
+    resp = await client.patch(
+        f"/api/bookings/{created['id']}",
+        json={"guests": 2},
+    )
+    assert resp.status_code == 401
+
+
 @pytest.mark.asyncio
 async def test_my_booking_detail_not_visible_to_other_user(
     client: AsyncClient,

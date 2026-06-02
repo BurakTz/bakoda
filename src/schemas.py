@@ -384,3 +384,53 @@ class BillingAddressUpdate(BaseModel):
 class HealthOut(BaseModel):
     status: str
     version: str = "0.1.0"
+
+
+# ── Booking update schema ─────────────────────────────────────────────────────
+
+
+class BookingUpdate(BaseModel):
+    check_in: date | None = None
+    check_out: date | None = None
+    guests: int | None = None
+    rooms_count: int | None = None
+
+    @field_validator("guests", "rooms_count")
+    @classmethod
+    def positive_counts(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("must be at least 1")
+        return v
+
+
+# ── Payment schemas ───────────────────────────────────────────────────────────
+
+
+class PaymentOut(BaseModel):
+    id: int
+    booking_id: int
+    amount: float
+    currency: str
+    method: str
+    status: str
+    transaction_id: str
+    card_last4: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Contact schemas ───────────────────────────────────────────────────────────
+
+
+class ContactOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    subject: str | None = None
+    message: str
+    ticket_id: str
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
