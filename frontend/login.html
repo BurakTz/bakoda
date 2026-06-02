@@ -189,31 +189,6 @@
     .form-title { font-size: 32px; font-weight: 600; line-height: 1.1; letter-spacing: -.015em; }
     .form-sub { color: var(--muted); margin: 10px 0 32px; font-size: 15px; }
 
-    /* Google button */
-    .btn-google {
-      width: 100%; background: #fff; color: var(--text);
-      border: 1px solid var(--line); height: 52px; font-weight: 500; font-size: 14.5px;
-      gap: 12px; transition: border-color .15s, box-shadow .2s var(--ease), transform .15s;
-    }
-    .btn-google:hover { border-color: rgba(15,42,42,.25); box-shadow: 0 6px 20px rgba(15,42,42,.10); transform: translateY(-1px); }
-    .btn-google:active { transform: translateY(0); }
-
-    /* Apple button (secondary social option) */
-    .btn-apple {
-      width: 100%; background: #111; color: #fff; border: 1px solid #111;
-      height: 52px; font-weight: 500; font-size: 14.5px; gap: 10px;
-    }
-    .btn-apple:hover { background: #000; }
-
-    .social-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    @media (max-width: 540px) { .social-row { grid-template-columns: 1fr; } }
-
-    /* Divider */
-    .divider {
-      display: flex; align-items: center; gap: 14px; margin: 22px 0;
-      color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-    }
-    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
     /* Form fields */
     .field { display: flex; flex-direction: column; gap: 6px; }
@@ -300,7 +275,7 @@
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
-  <script type="text/babel" src="icons.jsx"></script>
-  <script type="text/babel" src="login.jsx"></script>
+  <script type="text/babel" src="icons.jsx?v=20260602"></script>
+  <script type="text/babel" src="login.jsx?v=20260602"></script>
 </body>
 </html>

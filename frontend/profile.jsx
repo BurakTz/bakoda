@@ -186,19 +186,6 @@ function App() {
           </div>
         </div>
 
-        <div className="section-title">Profil</div>
-        <div className="avatar-edit">
-          <div className="av">{(form.firstName[0] + form.lastName[0]).toUpperCase()}</div>
-          <div className="meta">
-            <h3>Profil fotoğrafı</h3>
-            <p>JPG veya PNG · maksimum 4 MB</p>
-          </div>
-          <div className="actions">
-            <button type="button" className="btn btn-secondary">Yükle</button>
-            <button type="button" className="btn btn-ghost">Kaldır</button>
-          </div>
-        </div>
-
         <div className="section-title">Ad ve İletişim</div>
         <div className="grid-2">
           <div className="field">

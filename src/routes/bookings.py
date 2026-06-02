@@ -80,6 +80,7 @@ async def get_booking(booking_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(e))
 
     out = booking_service.booking_to_list_out(booking)
+    out.hotel_thumbnail = s3_service.resolve_thumbnail(out.hotel_thumbnail)
     if booking.confirmation_key:
         try:
             out.confirmation_url = s3_service.get_presigned_url(booking.confirmation_key)
@@ -123,6 +124,7 @@ async def update_booking(
     # Reload with hotel/room relations so the response matches the detail shape.
     booking = await booking_service.get_booking_detail(db, booking_id)
     out = booking_service.booking_to_list_out(booking)
+    out.hotel_thumbnail = s3_service.resolve_thumbnail(out.hotel_thumbnail)
     if booking.confirmation_key:
         try:
             out.confirmation_url = s3_service.get_presigned_url(booking.confirmation_key)

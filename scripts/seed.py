@@ -19,6 +19,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+from src.services import s3_service
+
+_IMAGES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hotel_images")
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@postgres:5432/bakoda"
 )
@@ -26,39 +30,38 @@ DATABASE_URL = os.getenv(
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-# 30 destinasyon: (şehir, ülke, unsplash photo id, bölge örnekleri)
-# Unsplash photo IDs verified against images.unsplash.com (many legacy IDs now 404).
+# 30 destinasyon: (şehir, ülke, bölge örnekleri)
 LOCATIONS = [
-    ("İstanbul", "Türkiye", "photo-1552733407-5d5c46c3bb3b", ["Beşiktaş", "Sultanahmet"]),
-    ("Antalya", "Türkiye", "photo-1566073771259-6a8506099945", ["Kaleiçi", "Lara"]),
-    ("Nevşehir", "Türkiye", "photo-1445019980597-93fa8acb246c", ["Ürgüp", "Göreme"]),
-    ("Bodrum", "Türkiye", "photo-1582719508461-905c673771fd", ["Yalıkavak", "Merkez"]),
-    ("Paris", "Fransa", "photo-1502602898657-3e91760cbb34", ["Le Marais", "Saint-Germain"]),
-    ("Roma", "İtalya", "photo-1552832230-c0197dd311b5", ["Trastevere", "Centro Storico"]),
-    ("Barcelona", "İspanya", "photo-1539037116277-4db20889f2d4", ["Gothic Quarter", "Eixample"]),
-    ("Madrid", "İspanya", "photo-1590490360182-c33d57733427", ["Salamanca", "Sol"]),
-    ("Londra", "İngiltere", "photo-1513635269975-59663e0ac1ad", ["Covent Garden", "South Bank"]),
-    ("Amsterdam", "Hollanda", "photo-1523906834658-6e24ef2386f9", ["Jordaan", "De Pijp"]),
-    ("Berlin", "Almanya", "photo-1595867818082-083862f3d630", ["Mitte", "Kreuzberg"]),
-    ("Prag", "Çekya", "photo-1469854523086-cc02fe5d8800", ["Staré Město", "Malá Strana"]),
-    ("Viyana", "Avusturya", "photo-1571896349842-33c89424de2d", ["Innere Stadt", "Leopoldstadt"]),
-    ("Atina", "Yunanistan", "photo-1555881400-74d7acaacd8b", ["Plaka", "Kolonaki"]),
-    ("Santorini", "Yunanistan", "photo-1613395877344-13d4a8e0d49e", ["Oia", "Fira"]),
-    ("Dubai", "BAE", "photo-1512453979798-5ea266f8880c", ["Downtown", "Palm Jumeirah"]),
-    ("Tokyo", "Japonya", "photo-1540959733332-eab4deabeeaf", ["Shinjuku", "Shibuya"]),
-    ("Kyoto", "Japonya", "photo-1542314831-068cd1dbfeeb", ["Gion", "Arashiyama"]),
-    ("Bangkok", "Tayland", "photo-1631049307264-da0ec9d70304", ["Sukhumvit", "Riverside"]),
-    ("Singapur", "Singapur", "photo-1582719478250-c89cae4dc85b", ["Marina Bay", "Orchard"]),
-    ("New York", "ABD", "photo-1507525428034-b723cf961d3e", ["Midtown", "SoHo"]),
-    ("Los Angeles", "ABD", "photo-1618773928121-c32242e63f39", ["Hollywood", "Santa Monica"]),
-    ("Miami", "ABD", "photo-1506905925346-21bda4d32df4", ["South Beach", "Brickell"]),
-    ("Marrakech", "Fas", "photo-1590490360182-c33d57733427", ["Medina", "Hivernage"]),
-    ("Cape Town", "Güney Afrika", "photo-1571896349842-33c89424de2d", ["Waterfront", "Camps Bay"]),
-    ("Sydney", "Avustralya", "photo-1469854523086-cc02fe5d8800", ["Circular Quay", "Bondi"]),
-    ("Bali", "Endonezya", "photo-1507525428034-b723cf961d3e", ["Ubud", "Seminyak"]),
-    ("Rio de Janeiro", "Brezilya", "photo-1483729558449-99ef09a8c325", ["Copacabana", "Ipanema"]),
-    ("Buenos Aires", "Arjantin", "photo-1483729558449-99ef09a8c325", ["Palermo", "San Telmo"]),
-    ("Zürih", "İsviçre", "photo-1542314831-068cd1dbfeeb", ["Altstadt", "Seefeld"]),
+    ("İstanbul", "Türkiye", ["Beşiktaş", "Sultanahmet"]),
+    ("Antalya", "Türkiye", ["Kaleiçi", "Lara"]),
+    ("Nevşehir", "Türkiye", ["Ürgüp", "Göreme"]),
+    ("Bodrum", "Türkiye", ["Yalıkavak", "Merkez"]),
+    ("Paris", "Fransa", ["Le Marais", "Saint-Germain"]),
+    ("Roma", "İtalya", ["Trastevere", "Centro Storico"]),
+    ("Barcelona", "İspanya", ["Gothic Quarter", "Eixample"]),
+    ("Madrid", "İspanya", ["Salamanca", "Sol"]),
+    ("Londra", "İngiltere", ["Covent Garden", "South Bank"]),
+    ("Amsterdam", "Hollanda", ["Jordaan", "De Pijp"]),
+    ("Berlin", "Almanya", ["Mitte", "Kreuzberg"]),
+    ("Prag", "Çekya", ["Staré Město", "Malá Strana"]),
+    ("Viyana", "Avusturya", ["Innere Stadt", "Leopoldstadt"]),
+    ("Atina", "Yunanistan", ["Plaka", "Kolonaki"]),
+    ("Santorini", "Yunanistan", ["Oia", "Fira"]),
+    ("Dubai", "BAE", ["Downtown", "Palm Jumeirah"]),
+    ("Tokyo", "Japonya", ["Shinjuku", "Shibuya"]),
+    ("Kyoto", "Japonya", ["Gion", "Arashiyama"]),
+    ("Bangkok", "Tayland", ["Sukhumvit", "Riverside"]),
+    ("Singapur", "Singapur", ["Marina Bay", "Orchard"]),
+    ("New York", "ABD", ["Midtown", "SoHo"]),
+    ("Los Angeles", "ABD", ["Hollywood", "Santa Monica"]),
+    ("Miami", "ABD", ["South Beach", "Brickell"]),
+    ("Marrakech", "Fas", ["Medina", "Hivernage"]),
+    ("Cape Town", "Güney Afrika", ["Waterfront", "Camps Bay"]),
+    ("Sydney", "Avustralya", ["Circular Quay", "Bondi"]),
+    ("Bali", "Endonezya", ["Ubud", "Seminyak"]),
+    ("Rio de Janeiro", "Brezilya", ["Copacabana", "Ipanema"]),
+    ("Buenos Aires", "Arjantin", ["Palermo", "San Telmo"]),
+    ("Zürih", "İsviçre", ["Altstadt", "Seefeld"]),
 ]
 
 HOTEL_PREFIXES = ["Grand", "Boutique", "Royal", "Harbor", "Garden", "Heritage"]
@@ -78,8 +81,43 @@ AMENITY_SETS = [
 ]
 
 
-def unsplash_url(photo_id: str, w: int = 600, h: int = 400) -> str:
-    return f"https://images.unsplash.com/{photo_id}?auto=format&fit=crop&w={w}&h={h}"
+_uploaded_keys: dict[str, str] = {}
+
+
+def _city_to_slug(city: str) -> str:
+    for src, dst in [
+        ("İ", "i"), ("ı", "i"), ("Ş", "s"), ("ş", "s"), ("Ç", "c"), ("ç", "c"),
+        ("Ğ", "g"), ("ğ", "g"), ("Ö", "o"), ("ö", "o"), ("Ü", "u"), ("ü", "u"),
+    ]:
+        city = city.replace(src, dst)
+    return city.lower().replace(" ", "-")
+
+
+def _upload_local_image(city: str) -> str:
+    """Read image from hotel_images/{slug}.jpg|png|webp and upload to S3."""
+    slug = _city_to_slug(city)
+    if slug in _uploaded_keys:
+        return _uploaded_keys[slug]
+
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        path = os.path.join(_IMAGES_DIR, f"{slug}.{ext}")
+        if os.path.exists(path):
+            key = f"hotel_images/{slug}.{ext}"
+            content_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+            try:
+                s3_service.ensure_bucket()
+                with open(path, "rb") as f:
+                    data = f.read()
+                s3_service.upload_image(key, data, content_type)
+                _uploaded_keys[slug] = key
+                print(f"  ↑ S3: {key}")
+                return key
+            except Exception as exc:
+                print(f"  ⚠ Resim yüklenemedi ({slug}): {exc}")
+                return ""
+
+    print(f"  - Resim bulunamadı: hotel_images/{slug}.[jpg|png|webp]")
+    return ""
 
 
 def _rooms_for_hotel(
@@ -129,7 +167,7 @@ def aggregate_reviews(reviews: list[dict]) -> tuple[float, int]:
 def build_hotels() -> list[dict]:
     hotels = []
     hotel_id = 1
-    for city_idx, (city, country, photo_id, districts) in enumerate(LOCATIONS):
+    for city_idx, (city, country, districts) in enumerate(LOCATIONS):
         for slot in range(2):
             district = districts[slot % len(districts)]
             stars = 5 if slot == 0 else 4
@@ -182,7 +220,7 @@ def build_hotels() -> list[dict]:
                     "price_per_night": float(base_price),
                     "check_in_time": "15:00",
                     "check_out_time": "11:00",
-                    "thumbnail": unsplash_url(photo_id),
+                    "thumbnail": _upload_local_image(city),
                     "rooms": rooms,
                     "amenities": AMENITY_SETS[slot % len(AMENITY_SETS)],
                     "reviews": reviews,
@@ -192,15 +230,12 @@ def build_hotels() -> list[dict]:
     return hotels
 
 
-HOTELS = build_hotels()
-
-
 async def reset_database(db: AsyncSession) -> None:
-    """Tüm otel verilerini temizle; rezervasyonları koru ama oda bağlantısını kopar."""
+    """Tüm otel ve rezervasyon verilerini temizle."""
     await db.execute(text("DELETE FROM hotel_reviews"))
     await db.execute(text("DELETE FROM hotel_amenities"))
     await db.execute(text("DELETE FROM favorites"))
-    await db.execute(text("UPDATE bookings SET room_id = NULL WHERE room_id IS NOT NULL"))
+    await db.execute(text("DELETE FROM bookings"))
     await db.execute(text("DELETE FROM rooms"))
     await db.execute(text("DELETE FROM hotels"))
     await db.execute(text("ALTER SEQUENCE hotels_id_seq RESTART WITH 1"))
@@ -208,11 +243,28 @@ async def reset_database(db: AsyncSession) -> None:
     await db.commit()
 
 
-async def seed() -> None:
+async def _hotels_exist(db: AsyncSession) -> bool:
+    result = await db.execute(text("SELECT EXISTS (SELECT 1 FROM hotels)"))
+    return bool(result.scalar())
+
+
+async def seed(if_empty: bool = False) -> None:
+    # Tablolar yoksa seed çalışamaz; önce Alembic migration'larını uygula.
+    from src.database import _run_alembic_upgrade
+
+    await asyncio.to_thread(_run_alembic_upgrade)
+
     async with AsyncSessionLocal() as db:
+        if if_empty and await _hotels_exist(db):
+            print("⏭  Veritabanı dolu, seed atlandı (--if-empty).")
+            return
+
+        # Resimler S3'e burada yüklenir; yalnızca seed gerçekten çalışacaksa yapılır.
+        hotels = build_hotels()
+
         await reset_database(db)
 
-        for h in HOTELS:
+        for h in hotels:
             result = await db.execute(
                 text("""
                     INSERT INTO hotels (id, name, city, district, stars, rating, reviews_count,
@@ -302,15 +354,15 @@ async def seed() -> None:
 
         cities = {}
         room_total = 0
-        for h in HOTELS:
+        for h in hotels:
             cities[h["city"]] = cities.get(h["city"], 0) + 1
             room_total += len(h["rooms"])
         print(
-            f"✅ {len(HOTELS)} otel, {len(cities)} destinasyon, {room_total} oda eklendi:"
+            f"✅ {len(hotels)} otel, {len(cities)} destinasyon, {room_total} oda eklendi:"
         )
         for city in sorted(cities):
             print(f"   {city}: {cities[city]} otel")
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    asyncio.run(seed(if_empty="--if-empty" in sys.argv))

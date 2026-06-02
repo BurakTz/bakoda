@@ -78,7 +78,7 @@ async def my_bookings(
                 f"{b.room.hotel.city}, {district}" if district else b.room.hotel.city
             )
             out.hotel_id = b.room.hotel.id
-            out.hotel_thumbnail = b.room.hotel.thumbnail
+            out.hotel_thumbnail = s3_service.resolve_thumbnail(b.room.hotel.thumbnail)
         result.append(out)
     return result
 

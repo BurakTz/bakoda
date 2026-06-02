@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = "test"
     aws_default_region: str = "us-east-1"
     s3_endpoint_url: str = "http://localhost:4566"
+    s3_public_endpoint_url: str = ""  # browser-facing override; defaults to s3_endpoint_url
     s3_bucket_name: str = "bakoda-confirmations"
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
     otel_enabled: bool = True

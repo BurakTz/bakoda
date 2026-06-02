@@ -82,5 +82,18 @@ async def health():
 
 
 # ── Frontend static files ────────────────────────────────────────────────────
+class NoCacheStaticFiles(StaticFiles):
+    """Tarayıcının .jsx/.html dosyalarını cache'lemesini engeller; geliştirme
+    sırasında düzenlemeler hard-refresh gerektirmeden anında yansır."""
+
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return False
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
+
 _frontend_dir = Path(__file__).parent.parent / "frontend"
-app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
+app.mount("/", NoCacheStaticFiles(directory=_frontend_dir, html=True), name="frontend")

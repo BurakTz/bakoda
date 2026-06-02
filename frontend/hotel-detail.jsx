@@ -155,14 +155,13 @@ function MiniCal({ value, min, onPick }) {
 }
 
 // ── Gallery ───────────────────────────────────────────────────────────
-// Otel ID'sine göre tutarlı 5 görsel URL üretir (picsum.photos seed-based)
-function hotelImages(hotelId) {
-  const sizes = ["800/600", "800/600", "600/600", "600/600", "600/600"];
-  return sizes.map((sz, i) => `https://picsum.photos/seed/hotel_${hotelId}_${i}/${sz}`);
+function hotelImages(hotel) {
+  const src = hotel.thumbnail;
+  return Array(5).fill(src);
 }
 
 function Gallery({ hotel, onOpen }) {
-  const imgs = hotelImages(hotel.id);
+  const imgs = hotelImages(hotel);
   return (
     <div className="container gallery">
       <div className="gallery-grid">
@@ -185,7 +184,7 @@ function Gallery({ hotel, onOpen }) {
 }
 
 function Lightbox({ hotel, idx, onClose, onNav }) {
-  const imgs = hotelImages(hotel.id);
+  const imgs = hotelImages(hotel);
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
@@ -281,7 +280,7 @@ function RoomsPanel({ hotel, nights }) {
         {hotel.rooms.map(r => (
           <article className="room" key={r.name || r.id}>
             <div className="img">
-              <img src={`https://picsum.photos/seed/room_${hotel.id}_${r.id}/400/300`} alt={r.name}
+              <img src={hotel.thumbnail} alt={r.name}
                    style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} loading="lazy" />
             </div>
             <div className="body">
@@ -687,6 +686,7 @@ function transformHotel(data, stay = null) {
   return {
     id: data.id,
     name: data.name,
+    thumbnail: data.thumbnail,
     stars: data.stars,
     district: `${data.city}${data.district ? ", " + data.district : ""}`,
     rating: parseFloat(Number(r).toFixed(1)),

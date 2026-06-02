@@ -1,10 +1,8 @@
-import asyncio
 import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy import engine_from_config, pool
 
 config = context.config
 if config.config_file_name is not None:
@@ -16,8 +14,9 @@ from src.database import Base  # noqa: E402
 
 
 def get_database_url() -> str:
-    """Prefer process env (Docker Compose / exec -e) over Settings/.env defaults."""
-    return os.environ.get("DATABASE_URL") or settings.database_url
+    url = os.environ.get("DATABASE_URL") or settings.database_url
+    # asyncpg driver is async-only; swap to psycopg2 for sync alembic migrations
+    return url.replace("postgresql+asyncpg://", "postgresql://")
 
 
 config.set_main_option("sqlalchemy.url", get_database_url())
@@ -37,25 +36,16 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    connectable = async_engine_from_config(
+def run_migrations_online() -> None:
+    connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
-
-
-def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
