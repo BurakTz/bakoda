@@ -94,11 +94,23 @@ def _city_to_slug(city: str) -> str:
     return city.lower().replace(" ", "-")
 
 
-def _upload_local_image(city: str) -> str:
-    """Read image from hotel_images/{slug}.jpg|png|webp and upload to S3."""
+def _image_key(city: str) -> str:
+    """Yerel görsele karşılık gelen S3 anahtarını döndürür (ağ erişimi yok).
+
+    Yalnızca dosya sistemine bakar; build_hotels() saf kalsın diye yükleme yapmaz.
+    """
+    slug = _city_to_slug(city)
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        if os.path.exists(os.path.join(_IMAGES_DIR, f"{slug}.{ext}")):
+            return f"hotel_images/{slug}.{ext}"
+    return ""
+
+
+def _upload_local_image(city: str) -> None:
+    """Yerel görseli S3'e yükler. Yalnızca seed() çalışırken çağrılır."""
     slug = _city_to_slug(city)
     if slug in _uploaded_keys:
-        return _uploaded_keys[slug]
+        return
 
     for ext in ("jpg", "jpeg", "png", "webp"):
         path = os.path.join(_IMAGES_DIR, f"{slug}.{ext}")
@@ -112,13 +124,11 @@ def _upload_local_image(city: str) -> str:
                 s3_service.upload_image(key, data, content_type)
                 _uploaded_keys[slug] = key
                 print(f"  ↑ S3: {key}")
-                return key
             except Exception as exc:
                 print(f"  ⚠ Resim yüklenemedi ({slug}): {exc}")
-                return ""
+            return
 
     print(f"  - Resim bulunamadı: hotel_images/{slug}.[jpg|png|webp]")
-    return ""
 
 
 def _rooms_for_hotel(
@@ -221,7 +231,7 @@ def build_hotels() -> list[dict]:
                     "price_per_night": float(base_price),
                     "check_in_time": "15:00",
                     "check_out_time": "11:00",
-                    "thumbnail": _upload_local_image(city),
+                    "thumbnail": _image_key(city),
                     "rooms": rooms,
                     "amenities": AMENITY_SETS[slot % len(AMENITY_SETS)],
                     "reviews": reviews,
@@ -260,8 +270,11 @@ async def seed(if_empty: bool = False) -> None:
             print("⏭  Veritabanı dolu, seed atlandı (--if-empty).")
             return
 
-        # Resimler S3'e burada yüklenir; yalnızca seed gerçekten çalışacaksa yapılır.
         hotels = build_hotels()
+
+        # Resimler S3'e burada yüklenir; yalnızca seed gerçekten çalışacaksa yapılır.
+        for city in {h["city"] for h in hotels}:
+            _upload_local_image(city)
 
         await reset_database(db)
 
