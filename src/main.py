@@ -55,7 +55,8 @@ def _ensure_s3_images() -> None:
             continue
         key = f"hotel_images/{img.name}"
         if key not in existing:
-            ct = "image/jpeg" if img.suffix.lower() in (".jpg", ".jpeg") else f"image/{img.suffix[1:]}"
+            ext = img.suffix.lower()
+            ct = "image/jpeg" if ext in (".jpg", ".jpeg") else f"image/{ext[1:]}"
             s3_service.upload_image(key, img.read_bytes(), ct)
             uploaded += 1
     if uploaded:
