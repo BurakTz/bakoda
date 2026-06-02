@@ -15,14 +15,20 @@ async def test_health_endpoint_returns_ok():
 
 @pytest.mark.asyncio
 async def test_lifespan_runs_migrations():
-    with patch("src.main.init_db", AsyncMock()) as init_db:
+    with (
+        patch("src.main.init_db", AsyncMock()) as init_db,
+        patch("src.main._ensure_s3_images"),
+    ):
         async with lifespan(app):
             init_db.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_health_http_without_running_migrations():
-    with patch("src.main.init_db", AsyncMock()):
+    with (
+        patch("src.main.init_db", AsyncMock()),
+        patch("src.main._ensure_s3_images"),
+    ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/health")

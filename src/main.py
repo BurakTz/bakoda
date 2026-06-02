@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -21,9 +22,46 @@ from src.config import settings
 from src.database import init_db
 from src.routes import auth, bookings, contact, hotels, payments, rooms, users
 from src.schemas import HealthOut
+from src.services import s3_service
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
+
+
+def _ensure_s3_images() -> None:
+    """Bucket'ı oluştur, eksik otel görsellerini yükle."""
+    images_dir = Path(__file__).parent.parent / "hotel_images"
+    if not images_dir.exists():
+        return
+    s3_service.ensure_bucket()
+    import boto3
+    client = boto3.client(
+        "s3",
+        endpoint_url=settings.s3_endpoint_url,
+        aws_access_key_id=settings.aws_access_key_id,
+        aws_secret_access_key=settings.aws_secret_access_key,
+        region_name=settings.aws_default_region,
+    )
+    existing = {
+        obj["Key"]
+        for page in client.get_paginator("list_objects_v2").paginate(
+            Bucket=settings.s3_bucket_name, Prefix="hotel_images/"
+        )
+        for obj in page.get("Contents", [])
+    }
+    uploaded = 0
+    for img in images_dir.iterdir():
+        if img.suffix.lower() not in (".jpg", ".jpeg", ".png", ".webp"):
+            continue
+        key = f"hotel_images/{img.name}"
+        if key not in existing:
+            ct = "image/jpeg" if img.suffix.lower() in (".jpg", ".jpeg") else f"image/{img.suffix[1:]}"
+            s3_service.upload_image(key, img.read_bytes(), ct)
+            uploaded += 1
+    if uploaded:
+        logger.info("S3: %d otel görseli yüklendi", uploaded)
+    else:
+        logger.info("S3: tüm görseller mevcut")
 
 
 def _setup_otel(app: FastAPI) -> None:
@@ -40,6 +78,10 @@ def _setup_otel(app: FastAPI) -> None:
 async def lifespan(app: FastAPI):
     logger.info("Starting up — running database migrations")
     await init_db()
+    try:
+        await asyncio.to_thread(_ensure_s3_images)
+    except Exception as e:
+        logger.warning("S3 image sync failed (non-fatal): %s", e)
     yield
     logger.info("Shutting down")
 

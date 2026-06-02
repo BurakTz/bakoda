@@ -13,15 +13,15 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{app_name=\"bakoda\"}[1m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"bakoda\"}[1m])) by (le))",
           "legendFormat": "p50"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app_name=\"bakoda\"}[1m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"bakoda\"}[1m])) by (le))",
           "legendFormat": "p95"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{app_name=\"bakoda\"}[1m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"bakoda\"}[1m])) by (le))",
           "legendFormat": "p99"
         }
       ]
@@ -34,7 +34,7 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[1m])) / sum(rate(http_requests_total[1m]))",
+          "expr": "sum(rate(http_requests_total{status=~\"5xx\"}[1m])) / sum(rate(http_requests_total[1m]))",
           "legendFormat": "5xx error rate"
         }
       ]
