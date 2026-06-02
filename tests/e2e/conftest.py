@@ -26,7 +26,7 @@ def _app_is_up() -> bool:
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args: dict) -> dict:
     """pytest-playwright: resolve relative URLs against BASE_URL."""
-    return {**browser_context_args, "base_url": BASE_URL}
+    return {**browser_context_args, "base_url": BASE_URL, "locale": "tr-TR"}
 
 
 @pytest.fixture(scope="session", autouse=True)
